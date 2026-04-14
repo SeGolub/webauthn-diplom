@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="BioAuth — Вход в систему многофакторной аутентификации WebAuthn (FIDO2)">
+    <title>BioAuth — Вход в систему</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- ============================================= -->
+    <!-- BACKGROUND FX (grid + glow)                   -->
+    <!-- ============================================= -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow--1"></div>
+    <div class="bg-glow bg-glow--2"></div>
+
+    <!-- ============================================= -->
+    <!-- HEADER                                        -->
+    <!-- ============================================= -->
+    <header class="header" id="header">
+        <div class="header__brand">
+            <div class="header__logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <rect width="32" height="32" rx="8" fill="url(#logo-grad)" />
+                    <path
+                        d="M16 6C13.5 6 11 7.5 10 10C9 12.5 9 15 10 17.5C11 20 13 22 16 26C19 22 21 20 22 17.5C23 15 23 12.5 22 10C21 7.5 18.5 6 16 6Z"
+                        fill="white" fill-opacity="0.9" />
+                    <circle cx="16" cy="14" r="3" fill="url(#logo-grad)" />
+                    <defs>
+                        <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32">
+                            <stop stop-color="#0ea5e9" />
+                            <stop offset="1" stop-color="#10b981" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <span class="header__title">BioAuth<span class="header__version">v2.0</span></span>
+        </div>
+        <nav class="header__nav">
+            <button class="btn--icon-only" id="btn-theme-toggle" aria-label="Переключить тему">
+                <span id="theme-icon" style="font-size: 1.1rem; line-height: 1;">☀️</span>
+            </button>
+            <div class="header__status">
+                <span class="status-dot status-dot--online"></span>
+                Система активна
+            </div>
+        </nav>
+    </header>
+
+    <!-- ============================================= -->
+    <!-- MAIN CONTENT                                  -->
+    <!-- ============================================= -->
+    <main class="main" id="main-content">
+
+        <!-- ========== AUTH SCREEN ========== -->
+        <section class="auth-section" id="auth-section">
+            <div class="auth-container">
+
+                <!-- Left: Form Panel -->
+                <div class="auth-form-panel" id="auth-form-panel">
+                    <div class="auth-form-panel__inner">
+                        <!-- Tab Switcher -->
+                        <div class="tab-switcher" id="tab-switcher">
+                            <button class="tab-switcher__btn tab-switcher__btn--active" data-tab="login"
+                                id="tab-login">Вход</button>
+                            <button class="tab-switcher__btn" data-tab="register" id="tab-register">Регистрация</button>
+                            <div class="tab-switcher__indicator" id="tab-indicator"></div>
+                        </div>
+
+                        <form class="auth-form" id="auth-form" autocomplete="off">
+                            <h1 class="auth-form__title" id="form-title">Добро пожаловать</h1>
+                            <p class="auth-form__subtitle" id="form-subtitle">Войдите в систему для продолжения</p>
+
+                            <!-- Email -->
+                            <div class="input-group" id="input-group-login">
+                                <label class="input-group__label" for="input-login">Email</label>
+                                <div class="input-group__wrapper">
+                                    <svg class="input-group__icon" width="18" height="18" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2">
+                                        <path
+                                            d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                                        </path>
+                                        <polyline points="22,6 12,13 2,6"></polyline>
+                                    </svg>
+                                    <input type="email" class="input-group__input" id="input-login"
+                                        placeholder="user@example.com" required>
+                                </div>
+                            </div>
+
+                            <!-- Biometric Login Block -->
+                            <div id="login-biometric-block">
+                                <button type="button" class="btn btn--primary btn--full" id="btn-biometric-login">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                    </svg>
+                                    Войти по FaceID / Отпечатку
+                                </button>
+                                <button type="button" class="btn btn--ghost btn--full" id="btn-show-backup-login"
+                                    style="margin-top: 0.5rem; font-size: 0.85rem; padding: 0.5rem;">
+                                    Нет доступа к устройству? Войти по резервному коду
+                                </button>
+                                <div class="auth-separator">
+                                    <span>или с помощью пароля</span>
+                                </div>
+                            </div>
+
+                            <!-- Password -->
+                            <div class="input-group" id="input-group-password">
+                                <label class="input-group__label" for="input-password">Пароль</label>
+                                <div class="input-group__wrapper">
+                                    <svg class="input-group__icon" width="18" height="18" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
+                                    <input type="password" class="input-group__input" id="input-password"
+                                        placeholder="Введите пароль" required>
+                                    <button type="button" class="input-group__toggle" id="toggle-password"
+                                        aria-label="Показать пароль">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Submit Password Button -->
+                            <button type="submit" class="btn btn--ghost btn--full" id="btn-next-step">
+                                <span id="btn-next-step-text">Войти по паролю</span>
+                            </button>
+
+                            <!-- Backup Code Login Block -->
+                            <div id="login-backup-block" style="display: none; margin-top: 1rem;">
+                                <div class="input-group">
+                                    <label class="input-group__label" for="input-backup-code">Резервный код</label>
+                                    <div class="input-group__wrapper">
+                                        <svg class="input-group__icon" width="18" height="18" viewBox="0 0 24 24"
+                                            fill="none" stroke="currentColor" stroke-width="2">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                        </svg>
+                                        <input type="text" class="input-group__input" id="input-backup-code"
+                                            placeholder="Введите резервный код">
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn--primary btn--full" id="btn-backup-login-submit"
+                                    style="margin-top: 1rem;">
+                                    Подтвердить резервный код
+                                </button>
+                                <button type="button" class="btn btn--ghost btn--full" id="btn-back-to-normal-login"
+                                    style="margin-top: 0.5rem;">
+                                    Вернуться к обычному входу
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="auth-form__footer">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
+                            Защищено 256-битным AES шифрованием
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Biometric Panel -->
+                <div class="biometric-panel" id="biometric-panel">
+                    <div class="biometric-panel__inner">
+
+                        <div class="security-info-block" id="security-info-block">
+                            <h3 class="security-info-block__main-title">Будущее без паролей</h3>
+
+                            <div class="feature-card">
+                                <div class="feature-card__icon" style="color: #10b981;">
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                    </svg>
+                                </div>
+                                <div class="feature-card__text">
+                                    <span>Приватность биометрии</span>
+                                    <span>Ваш отпечаток пальца или скан лица никогда не покидают ваше устройство.
+                                        BioAuth отправляет на сервер только уникальный криптографический ключ.</span>
+                                </div>
+                            </div>
+
+                            <div class="feature-card">
+                                <div class="feature-card__icon" style="color: #0ea5e9;">
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="2" y1="12" x2="22" y2="12" />
+                                        <path
+                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                                    </svg>
+                                </div>
+                                <div class="feature-card__text">
+                                    <span>Защита от фишинга</span>
+                                    <span>WebAuthn привязывает ваш вход к домену сайта. Даже если вы перейдете по
+                                        поддельной ссылке, авторизация будет заблокирована на аппаратном уровне.</span>
+                                </div>
+                            </div>
+
+                            <div class="feature-card">
+                                <div class="feature-card__icon" style="color: #f59e0b;">
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path
+                                            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+                                        </path>
+                                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                                    </svg>
+                                </div>
+                                <div class="feature-card__text">
+                                    <span>Безопасное восстановление</span>
+                                    <span>Потеряли доступ к основному устройству? Используйте резервные коды или
+                                        привяжите дополнительные ключи безопасности для восстановления.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="video-container" id="video-container" style="display: none;">
+                            <div class="video-container__placeholder">
+                                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="1.5" color="#0ea5e9">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                </svg>
+                                <p>Ожидание системной<br>проверки биометрии</p>
+                            </div>
+                        </div>
+
+                        <div class="instruction-block" id="instruction-block" style="display: none;">
+                            <div class="instruction-block__icon" id="instruction-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="16" x2="12" y2="12" />
+                                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                                </svg>
+                            </div>
+                            <p class="instruction-block__text" id="instruction-text">Заполните форму слева и нажмите
+                                «Продолжить»</p>
+                        </div>
+
+                        <div class="progress-container" id="progress-container" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-bar__fill" id="progress-fill"></div>
+                            </div>
+                            <span class="progress-bar__label" id="progress-label">0%</span>
+                        </div>
+
+                    </div>
+                </div>
+        </section>
+
+        <!-- ========== SUCCESS SCREEN ========== -->
+        <section class="success-section hidden" id="success-section">
+            <div class="success-card">
+                <div class="success-card__icon">
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="1.5">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                </div>
+                <h2 class="success-card__title">Верификация пройдена</h2>
+                <p class="success-card__subtitle">Добро пожаловать, <span id="welcome-username">Пользователь</span></p>
+                <div class="success-card__details">
+                    <div class="detail-row"><span>Время входа</span><span id="login-time">—</span></div>
+                    <div class="detail-row"><span>IP-адрес</span><span id="login-ip">192.168.1.100</span></div>
+                    <div class="detail-row"><span>Уровень доверия</span><span
+                            class="badge badge--success">Высокий</span></div>
+                </div>
+                <div class="biometrics-setup-actions">
+                    <button class="btn btn--ghost btn--full" id="btn-setup-platform">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                            <line x1="8" y1="21" x2="16" y2="21" />
+                            <line x1="12" y1="17" x2="12" y2="21" />
+                        </svg>
+                        Привязать этот Ноутбук (Windows Hello / TouchID)
+                    </button>
+                    <button class="btn btn--ghost btn--full" id="btn-setup-crossplatform">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                            <line x1="12" y1="18" x2="12.01" y2="18" />
+                        </svg>
+                        Привязать Телефон (по QR) или YubiKey
+                    </button>
+                </div>
+                <button class="btn btn--primary btn--full" id="btn-logout">Перейти в Панель управления</button>
+            </div>
+        </section>
+
+        <!-- ========== PROGRESSIVE ENROLLMENT PROMO ========== -->
+        <section class="auth-section hidden" id="biometric-promo-modal">
+            <div class="promo-modal">
+                <div class="promo-modal__icon">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                </div>
+                <h2 class="promo-modal__title">Аккаунт успешно создан!</h2>
+                <p class="promo-modal__text">Устали от паролей? Привяжите устройство прямо сейчас для мгновенного и
+                    безопасного входа в будущем.</p>
+                <div class="promo-modal__actions">
+                    <button class="btn btn--primary btn--full" id="btn-promo-platform">
+                        💻 Привязать этот Ноутбук/ПК
+                    </button>
+                    <button class="btn btn--ghost btn--full" id="btn-promo-crossplatform">
+                        📱 Привязать Телефон/YubiKey
+                    </button>
+                    <button class="btn btn--ghost btn--full btn--skip" id="btn-promo-skip">
+                        Пропустить пока
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ============================================= -->
+    <!-- NOTIFICATIONS / TOASTS                        -->
+    <!-- ============================================= -->
+    <div class="notifications-container" id="notifications-container"></div>
+
+    <!-- ============================================= -->
+    <!-- SCRIPTS: WebAuthn                             -->
+    <!-- ============================================= -->
+    <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

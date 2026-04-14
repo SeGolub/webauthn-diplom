@@ -1,0 +1,38 @@
+
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      # FastAPI config expects db_url (Pydantic case-insensitive settings mappings)
+      - db_url=postgresql+asyncpg://postgres:postgres_password@db:5432/biometrics_db
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres_password@db:5432/biometrics_db
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env
+
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_password}
+      POSTGRES_DB: ${POSTGRES_DB:-biometrics_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
