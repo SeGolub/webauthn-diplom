@@ -11,8 +11,6 @@ from pydantic import BaseModel
 logger = logging.getLogger("bioauth.exceptions")
 
 
-# ── Единый формат ошибки ───────────────────────────────────────
-
 class ErrorDetail(BaseModel):
     code: int
     message: str
@@ -23,13 +21,13 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail
 
 
-# ── Обработчики ────────────────────────────────────────────────
-
 def register_exception_handlers(app: FastAPI) -> None:
     """Регистрирует все глобальные обработчики ошибок на экземпляре FastAPI."""
 
     @app.exception_handler(StarletteHTTPException)
-    async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    async def http_exception_handler(
+        request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
         """REFACTORED: HTTPException теперь возвращается в едином JSON-формате
         вместо стандартного {"detail": "..."}."""
         return JSONResponse(
@@ -43,9 +41,9 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        """REFACTORED: Ошибки валидации Pydantic теперь возвращаются в человекочитаемом
-        формате с подробностями, а не в сыром виде."""
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
         details = []
         for error in exc.errors():
             field = " → ".join(str(loc) for loc in error["loc"])
@@ -63,9 +61,9 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(SQLAlchemyError)
-    async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
-        """REFACTORED: Ошибки БД логируются серверно, но клиенту отдаётся
-        безопасное сообщение без деталей SQL-запроса или структуры БД."""
+    async def sqlalchemy_exception_handler(
+        request: Request, exc: SQLAlchemyError
+    ) -> JSONResponse:
         logger.error(f"Database error: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -78,9 +76,9 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(Exception)
-    async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-        """REFACTORED: Catch-all для неожиданных ошибок.
-        Предотвращает утечку stack trace в production."""
+    async def general_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         logger.error(f"Unhandled exception: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

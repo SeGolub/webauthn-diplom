@@ -1,13 +1,8 @@
-# REFACTORED: Слой сервисов для админ-панели.
-# Вся "тяжёлая" логика (запросы к БД, подсчёт total, пагинация)
-# вынесена из роутера сюда. Роутер теперь только принимает запрос,
-# вызывает сервис и отдаёт ответ — чистая архитектура.
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
 from sqlmodel import select
 
-from src.api.user.models import User, AuditLog, WebAuthnCredential
+from src.api.user.models import User, AuditLog
 
 
 async def get_all_users(
@@ -15,19 +10,10 @@ async def get_all_users(
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[User], int]:
-    """REFACTORED: Возвращает кортеж (users, total_count).
-    
-    Два запроса:
-    1. COUNT(*) — общее число пользователей (для total в пагинации)
-    2. SELECT с OFFSET/LIMIT — текущая страница
-    
-    Роутер не знает о session.execute — он получает готовые данные.
-    """
-    # Считаем общее количество
+    """Возвращает список пользователей с пагинацией."""
     count_stmt = select(func.count()).select_from(User)
     total = (await session.execute(count_stmt)).scalar_one()
 
-    # Получаем страницу пользователей
     stmt = (
         select(User)
         .order_by(User.id)
@@ -44,18 +30,13 @@ async def get_audit_logs(
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[AuditLog], int]:
-    """REFACTORED: Аналогично get_all_users — пагинация + total.
-    
-    Логи сортируются по timestamp DESC (новые сверху).
-    """
-    # Считаем общее количество
+    """Возвращает записи аудита с пагинацией."""
     count_stmt = select(func.count()).select_from(AuditLog)
     total = (await session.execute(count_stmt)).scalar_one()
 
-    # Получаем страницу логов
     stmt = (
         select(AuditLog)
-        .order_by(AuditLog.timestamp.desc())
+        .order_by(AuditLog.id.desc())
         .offset(skip)
         .limit(limit)
     )
@@ -69,32 +50,46 @@ async def toggle_user_lock(
     user_id: int,
     is_locked: bool,
 ) -> User:
-    """Блокирует или разблокирует пользователя по ID.
-    Возвращает обновлённого пользователя."""
+    """Блокирует или разблокирует пользователя.
+
+    Raises:
+        ValueError: Если пользователь не найден.
+    """
     stmt = select(User).where(User.id == user_id)
-    user = (await session.execute(stmt)).scalars().first()
-    if user is None:
+    result = await session.execute(stmt)
+    user = result.scalars().first()
+
+    if not user:
         raise ValueError("Пользователь не найден")
 
     user.is_locked = is_locked
     session.add(user)
     await session.commit()
     await session.refresh(user)
+
     return user
 
 
-async def reset_user_credentials(
+async def reset_user_face(
     session: AsyncSession,
     user_id: int,
-) -> int:
-    """Удаляет все WebAuthn credentials пользователя.
-    Возвращает количество удалённых записей."""
-    stmt = select(WebAuthnCredential).where(WebAuthnCredential.user_id == user_id)
-    credentials = (await session.execute(stmt)).scalars().all()
+) -> User:
+    """Обнуляет face_embedding — пользователю нужно будет заново
+    зарегистрировать лицо через /auth/face/enroll.
 
-    count = len(credentials)
-    for cred in credentials:
-        await session.delete(cred)
+    Raises:
+        ValueError: Если пользователь не найден.
+    """
+    stmt = select(User).where(User.id == user_id)
+    result = await session.execute(stmt)
+    user = result.scalars().first()
 
+    if not user:
+        raise ValueError("Пользователь не найден")
+
+    user.face_embedding = None
+    session.add(user)
     await session.commit()
-    return count
+    await session.refresh(user)
+
+    return user

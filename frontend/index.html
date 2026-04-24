@@ -4,8 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description"
-        content="BioAuth — Панель управления. Профиль, устройства FIDO2, администрирование.">
+    <meta name="description" content="BioAuth — Панель управления. Профиль, биометрия лица, администрирование.">
     <title>BioAuth — Панель управления</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,7 +49,7 @@
                     </defs>
                 </svg>
             </div>
-            <span class="header__title">BioAuth<span class="header__version">v2.0</span></span>
+            <span class="header__title">BioAuth<span class="header__version">v3.0</span></span>
         </div>
         <nav class="header__nav">
             <button class="btn--icon-only" id="btn-theme-toggle" aria-label="Переключить тему">
@@ -62,9 +61,9 @@
             </div>
             <button class="btn btn--ghost btn--sm" id="btn-header-logout" style="color: var(--color-red);">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                    <polyline points="16 17 21 12 16 7"/>
-                    <line x1="21" y1="12" x2="9" y2="12"/>
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
                 Выход
             </button>
@@ -90,7 +89,7 @@
                             <span class="sidebar-link__icon">👤</span> Мой профиль
                         </a>
                         <a href="#" class="sidebar-link" id="nav-my-devices">
-                            <span class="sidebar-link__icon">🔑</span> Мои устройства
+                            <span class="sidebar-link__icon">📸</span> Биометрия лица
                         </a>
                         <div class="sidebar-divider"></div>
                         <a href="#" class="sidebar-link hidden" id="nav-admin-panel">
@@ -103,7 +102,6 @@
                     </nav>
                 </aside>
 
-                <!-- ========== PROFILE SECTION (app-section) ========== -->
                 <div class="dashboard-content app-section" id="profile-section">
                     <div class="dashboard-header">
                         <h2 class="dashboard-header__title">
@@ -126,46 +124,67 @@
                         </div>
                     </div>
 
-                    <!-- Profile Info Card -->
-                    <div class="profile-card" style="display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: center; padding: 1.5rem; background: var(--color-bg-card); border-radius: var(--radius-lg); border: 1px solid var(--color-border); margin-bottom: 2rem;">
-                        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #0ea5e9, #10b981); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; font-weight: 700;">
+                    <div class="profile-card"
+                        style="display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: center; padding: 1.5rem; background: var(--color-bg-card); border-radius: var(--radius-lg); border: 1px solid var(--color-border); margin-bottom: 2rem;">
+                        <div
+                            style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #0ea5e9, #10b981); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; font-weight: 700;">
                             <span id="profile-avatar">U</span>
                         </div>
                         <div>
-                            <div style="font-size: var(--font-size-lg); font-weight: 600; color: var(--color-text-primary);" id="profile-email">user@example.com</div>
+                            <div style="font-size: var(--font-size-lg); font-weight: 600; color: var(--color-text-primary);"
+                                id="profile-email">user@example.com</div>
                             <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 0.25rem;">
                                 <span class="log-badge log-badge--success" id="profile-role-badge">user</span>
-                                <span style="font-size: var(--font-size-sm); color: var(--color-text-muted);" id="profile-login-time"></span>
+                                <span style="font-size: var(--font-size-sm); color: var(--color-text-muted);"
+                                    id="profile-login-time"></span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Device Cards -->
                     <div class="devices-section">
-                        <h3 class="section-title">Привязанные устройства (FIDO2)</h3>
-                        <div class="device-list" id="devices-list">
-                            <!-- Devices loaded dynamically -->
+                        <h3 class="section-title">Биометрия лица</h3>
+                        <div class="device-list">
+                            <div class="device-card"
+                                style="display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; background: var(--color-bg-card); border-radius: 12px; border: 1px solid var(--color-border);">
+                                <div class="device-info">
+                                    <span style="font-size: 1.5rem;">🧑</span>
+                                    <div class="device-meta">
+                                        <span class="device-name" style="font-weight: 500;">Распознавание лица</span>
+                                        <span class="device-date"
+                                            style="color: var(--color-text-secondary); font-size: 0.85rem;"
+                                            id="face-status-text">Проверка статуса...</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn--primary" id="btn-dash-enroll-face">
+                                    📸 Зарегистрировать лицо
+                                </button>
+                            </div>
                         </div>
-                        <div class="devices-actions">
-                            <button class="btn btn--primary" id="btn-dash-setup-platform">
-                                + Привязать этот Ноутбук
-                            </button>
-                            <button class="btn btn--ghost" id="btn-dash-setup-crossplatform">
-                                + Привязать Телефон/Ключ
+
+                        <div id="dash-camera-section"
+                            style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: var(--color-bg-card); border-radius: 12px; border: 1px solid var(--color-border);">
+                            <video id="dash-camera-video" autoplay playsinline muted
+                                style="width: 100%; max-width: 480px; border-radius: 12px; display: block; margin: 0 auto;"></video>
+                            <button type="button" class="btn btn--primary btn--full" id="btn-dash-capture"
+                                style="margin-top: 1rem; max-width: 480px; margin-left: auto; margin-right: auto; display: block;">
+                                📸 Сделать снимок
                             </button>
                         </div>
                     </div>
 
-                    <!-- Security & Recovery -->
                     <div class="security-section" style="margin-top: 2rem;">
                         <h3 class="section-title">Безопасность и Восстановление</h3>
                         <div class="device-list">
-                            <div class="device-card" style="display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; background: var(--color-bg-card); border-radius: 12px; border: 1px solid var(--color-border);">
+                            <div class="device-card"
+                                style="display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; background: var(--color-bg-card); border-radius: 12px; border: 1px solid var(--color-border);">
                                 <div class="device-info">
                                     <span style="font-size: 1.5rem;">📄</span>
                                     <div class="device-meta">
                                         <span class="device-name" style="font-weight: 500;">Резервные коды</span>
-                                        <span class="device-date" style="color: var(--color-text-secondary); font-size: 0.85rem;">Используются для входа без устройства</span>
+                                        <span class="device-date"
+                                            style="color: var(--color-text-secondary); font-size: 0.85rem;">Используются
+                                            для входа без камеры</span>
                                     </div>
                                 </div>
                                 <button class="btn btn--ghost" id="btn-generate-backup-codes">
@@ -175,7 +194,6 @@
                         </div>
                     </div>
 
-                    <!-- Stat Cards -->
                     <div class="stats-grid" id="stats-grid" style="margin-top: 2rem;">
                         <div class="stat-card">
                             <div class="stat-card__icon stat-card__icon--blue">
@@ -236,7 +254,6 @@
                         </div>
                     </div>
 
-                    <!-- Logs Table -->
                     <div class="logs-table-wrapper">
                         <table class="logs-table" id="logs-table">
                             <thead>
@@ -265,8 +282,7 @@
                                 </svg>
                             </div>
                             <div class="empty-state__title">Нет записей</div>
-                            <div class="empty-state__text">Журнал событий пока пуст. Записи появятся после первого
-                                действия.</div>
+                            <div class="empty-state__text">Журнал событий пока пуст.</div>
                         </div>
                     </div>
                 </div>
@@ -284,14 +300,12 @@
                         <div class="dashboard-header__actions"></div>
                     </div>
 
-                    <!-- Admin Tabs -->
                     <div class="tab-switcher admin-tabs">
                         <button class="tab-switcher__btn tab-switcher__btn--active" id="tab-admin-users">👥
                             Пользователи</button>
                         <button class="tab-switcher__btn" id="tab-admin-audit">📊 Аудит и Графики</button>
                     </div>
 
-                    <!-- Users Tab -->
                     <div id="admin-users-view">
                         <h3 class="admin-section-title">Пользователи системы</h3>
                         <div class="logs-table-wrapper">
@@ -344,10 +358,8 @@
                                     </tr>
                                 </thead>
                                 <tbody id="admin-audit-tbody">
-                                    <!-- Audit logs via JS -->
                                 </tbody>
                             </table>
-                            <!-- Empty state for audit table -->
                             <div class="empty-state hidden" id="audit-empty-state">
                                 <div class="empty-state__icon">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -365,15 +377,16 @@
             </div>
         </section>
 
-        <!-- ========== BACKUP CODES MODAL ========== -->
-        <section class="auth-section hidden" id="backup-codes-modal" style="z-index: 1000; position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center;">
+        <section class="auth-section hidden" id="backup-codes-modal"
+            style="z-index: 1000; position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center;">
             <div class="promo-modal" style="width: 100%; max-width: 450px;">
                 <h2 class="promo-modal__title">Резервные коды</h2>
-                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.9rem;">
+                <div
+                    style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.9rem;">
                     <strong>Внимание!</strong> Сохраните эти коды прямо сейчас. Вы больше никогда их не увидите.
                 </div>
-                <div id="backup-codes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: var(--color-bg-secondary); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: 8px; font-family: 'JetBrains Mono', monospace; text-align: center; font-size: 1.1rem; margin-bottom: 1.5rem; color: var(--color-text-primary);">
-                    <!-- Codes go here -->
+                <div id="backup-codes-grid"
+                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: var(--color-bg-secondary); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: 8px; font-family: 'JetBrains Mono', monospace; text-align: center; font-size: 1.1rem; margin-bottom: 1.5rem; color: var(--color-text-primary);">
                 </div>
                 <div class="promo-modal__actions">
                     <button class="btn btn--primary btn--full" id="btn-copy-backup-codes">
@@ -387,17 +400,9 @@
         </section>
     </main>
 
-    <!-- ============================================= -->
-    <!-- NOTIFICATIONS / TOASTS                        -->
-    <!-- ============================================= -->
     <div class="notifications-container" id="notifications-container"></div>
 
-    <!-- ============================================= -->
-    <!-- SCRIPTS: WebAuthn                             -->
-    <!-- ============================================= -->
-    <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
-
-    <script src="app.js"></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 
 </html>

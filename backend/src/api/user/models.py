@@ -1,63 +1,59 @@
-from datetime import datetime, timezone 
+from datetime import datetime, UTC
 
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, Column, Text
 from typing import Optional
 from enum import Enum
 
 
-class WebAuthnCredential(SQLModel, table=True):
-    __tablename__ = "webauthn_credentials"
-
-    id: int | None = Field(default=None, primary_key=True)
-    credential_id: str = Field(index=True, unique=True, max_length=512)
-    public_key: str = Field(max_length=2048)
-    sign_count: int = Field(default=0)
-    transports: str | None = Field(default=None, max_length=256)
-
-    user_id: int = Field(foreign_key="user.id")
-    user: Optional["User"] = Relationship(back_populates="credentials")
-
-
 class UserRole(str, Enum):
-    ADMIN = 'admin'
-    USER = 'user'
-    AUDITOR = 'auditor'
+    """Роли пользователей в системе."""
+    USER = "user"
+    ADMIN = "admin"
+    AUDITOR = "auditor"
 
 
 class User(SQLModel, table=True):
+    """Модель пользователя.
+
+    Attributes:
+        face_embedding: JSON-строка с 128-мерным вектором эмбеддинга лица.
+            Извлекается библиотекой face_recognition при регистрации.
+            None — лицо ещё не зарегистрировано.
+    """
     id: int | None = Field(default=None, primary_key=True)
-    username: str = Field(index=True, unique=True)
-    email: str = Field(index=True, unique=True)
+    username: str = Field(max_length=50)
+    email: str = Field(unique=True, index=True)
     hashed_pass: str
-
-    is_locked: bool = Field(default=False) # Для блокировки админом
-    failed_attempts: int = Field(default=0) # Для защиты от брутфорса кодов
-
-
-    #otp_secret: str | None = Field(default=None, nullable=True)
     role: UserRole = Field(default=UserRole.USER)
-    logs: list["AuditLog"] = Relationship(back_populates="user")
+    face_embedding: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    is_locked: bool = Field(default=False)
 
-    credentials: list[WebAuthnCredential] = Relationship(back_populates="user")
-    backup_codes: list["BackupCode"] = Relationship(back_populates="user", cascade_delete=True)
+    backup_codes: list["BackupCode"] = Relationship(back_populates="user")
 
 
 class BackupCode(SQLModel, table=True):
+    """Резервные коды для восстановления доступа.
+
+    Коды хранятся в bcrypt-хеше. Одноразовые — после использования
+    помечаются is_used=True.
+    """
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
-    code_hash: str # Хэшированный резервный код
+    code_hash: str
     is_used: bool = Field(default=False)
-    
-    user: Optional["User"] = Relationship(back_populates="backup_codes")
+
+    user: User = Relationship(back_populates="backup_codes")
 
 
 class AuditLog(SQLModel, table=True):
+    """Журнал аудита.
+
+    Фиксирует все действия: входы, регистрации, административные операции.
+    """
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int | None = Field(foreign_key="user.id", nullable=True)
-    action: str  # LOGIN_SUCCESS, REGISTER_WEBAUTHN, DELETE_USER
-    status: str  # SUCCESS, FAILED
+    user_id: int | None = Field(default=None, foreign_key="user.id")
+    action: str
+    status: str
     ip_address: str | None = None
     user_agent: str | None = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
-
-    user: User | None = Relationship(back_populates="logs")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))

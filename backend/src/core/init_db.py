@@ -2,8 +2,7 @@ import asyncio
 from sqlmodel import SQLModel
 from src.core.database import engine
 
-# Обязательно импортируем все модели
-from src.api.user.models import User, AuditLog, WebAuthnCredential
+from src.api.user.models import User, AuditLog, BackupCode
 from src.api.user.models import UserRole 
 
 async def init_db():

@@ -1,267 +1,107 @@
-"""WebAuthn (FIDO2) service layer.
-
-Вся биометрия (FaceID / TouchID / Windows Hello) проверяется ЛОКАЛЬНО
-на устройстве пользователя.  Сервер работает только с публичными ключами
-и криптографическими challenge-ами.
-"""
 import json
-import secrets
+import random
+import base64
+import logging
+from io import BytesIO
 
-from sqlmodel import select
+import numpy as np
+import face_recognition
 from sqlalchemy.ext.asyncio import AsyncSession
-
-import webauthn
-from webauthn.helpers.structs import (
-    AuthenticatorSelectionCriteria,
-    ResidentKeyRequirement,
-    UserVerificationRequirement,
-    PublicKeyCredentialDescriptor,
-    AuthenticatorTransport,
-    AuthenticatorAttachment,
-)
-from webauthn.helpers import (
-    bytes_to_base64url,
-    base64url_to_bytes,
-    options_to_json,
-    parse_registration_credential_json,
-    parse_authentication_credential_json,
-)
 
 from src.core.config import settings
 from src.core.redis import redis_client
-from src.core.security import create_access_token
-from src.api.user.models import User, WebAuthnCredential, AuditLog
-from src.api.user import service as user_service
+from src.api.user.models import AuditLog
 
+logger = logging.getLogger("bioauth.service")
 
+OTP_REDIS_PREFIX = "otp:"
 
-CHALLENGE_TTL = 120  # 2 минут
+def decode_base64_image(image_base64: str) -> np.ndarray:
+    if "," in image_base64:
+        image_base64 = image_base64.split(",", 1)[1]
 
+    try:
+        image_bytes = base64.b64decode(image_base64)
+    except Exception as exc:
+        raise ValueError(f"Невалидный Base64: {exc}")
 
-# ── Helpers ────────────────────────────────────────────────────
+    try:
+        image_array = face_recognition.load_image_file(BytesIO(image_bytes))
+    except Exception as exc:
+        raise ValueError(f"Не удалось декодировать изображение: {exc}")
 
-def _challenge_key(email: str, ceremony: str) -> str:
-    """Ключ Redis для хранения challenge."""
-    return f"webauthn_challenge:{ceremony}:{email}"
+    return image_array
 
+def extract_face_embedding(image_base64: str) -> list[float]:
+    image_array = decode_base64_image(image_base64)
 
-async def _store_challenge(email: str, challenge: bytes, ceremony: str) -> None:
-    key = _challenge_key(email, ceremony)
-    await redis_client.set(key, bytes_to_base64url(challenge), ex=CHALLENGE_TTL)
+    encodings = face_recognition.face_encodings(image_array)
 
-
-async def _pop_challenge(email: str, ceremony: str) -> bytes:
-    """Извлечь и удалить challenge (одноразовый)."""
-    key = _challenge_key(email, ceremony)
-    raw = await redis_client.getdel(key)
-    if raw is None:
-        raise ValueError("Challenge expired or not found")
-    return base64url_to_bytes(raw)
-
-
-# ── Registration ───────────────────────────────────────────────
-
-async def generate_registration_options_for_user(
-    email: str,
-    username: str,
-    session: AsyncSession,
-    attachment_type: str = None
-) -> str:
-    """Генерирует опции для navigator.credentials.create().
-
-    Returns:
-        JSON-строка с PublicKeyCredentialCreationOptions.
-    """
-    user = await user_service.get_user_by_email(email, session)
-    if user is None:
-        raise ValueError("User not found. Register via /auth/register/ first.")
-
-    # Собираем уже зарегистрированные ключи, чтобы исключить дубли
-    existing_credentials = [
-        PublicKeyCredentialDescriptor(
-            id=base64url_to_bytes(cred.credential_id),
-            transports=(
-                [AuthenticatorTransport(t) for t in json.loads(cred.transports)]
-                if cred.transports
-                else []
-            ),
-        )
-        for cred in user.credentials
-    ]
-
-    attachment = None
-    if attachment_type == "platform":
-        attachment = AuthenticatorAttachment.PLATFORM # Только ноут
-    elif attachment_type == "cross-platform":
-        attachment = AuthenticatorAttachment.CROSS_PLATFORM # Только телефон/флешка
-
-
-
-    registration_options = webauthn.generate_registration_options(
-        rp_id=settings.WEBAUTHN_RP_ID,
-        rp_name=settings.WEBAUTHN_RP_NAME,
-        user_id=str(user.id).encode(),
-        user_name=user.email,
-        user_display_name=user.username,
-        exclude_credentials=existing_credentials,
-        authenticator_selection=AuthenticatorSelectionCriteria(
-            authenticator_attachment=attachment,
-            resident_key=ResidentKeyRequirement.PREFERRED,
-            user_verification=UserVerificationRequirement.PREFERRED,
-        ),
-    )
-
-    # Сохраняем challenge в Redis
-    await _store_challenge(email, registration_options.challenge, "register")
-
-    return options_to_json(registration_options)
-
-
-async def verify_registration(
-    email: str,
-    credential_json: str,
-    session: AsyncSession,
-) -> WebAuthnCredential:
-    """Валидирует ответ из navigator.credentials.create() и сохраняет ключ.
-
-    Returns:
-        Созданный WebAuthnCredential.
-    """
-    expected_challenge = await _pop_challenge(email, "register")
-
-    credential = parse_registration_credential_json(credential_json)
-
-    verification = webauthn.verify_registration_response(
-        credential=credential,
-        expected_challenge=expected_challenge,
-        expected_rp_id=settings.WEBAUTHN_RP_ID,
-        expected_origin=settings.WEBAUTHN_RP_ORIGIN,
-    )
-
-    user = await user_service.get_user_by_email(email, session)
-    if user is None:
-        raise ValueError("User not found")
-
-    # Сохраняем только публичный ключ — НИКАКОЙ сырой биометрии
-    transports_json = None
-    if credential.response.transports:
-        transports_json = json.dumps(
-            [str(t.value) for t in credential.response.transports]
+    if len(encodings) == 0:
+        raise ValueError(
+            "Лицо не обнаружено на изображении. "
+            "Убедитесь, что лицо хорошо освещено и находится в кадре."
         )
 
-    new_credential = WebAuthnCredential(
-        credential_id=bytes_to_base64url(verification.credential_id),
-        public_key=bytes_to_base64url(verification.credential_public_key),
-        sign_count=verification.sign_count,
-        transports=transports_json,
-        user_id=user.id,
-    )
-
-    session.add(new_credential)
-    await session.commit()
-    await session.refresh(new_credential)
-
-    return new_credential
-
-
-# ── Authentication ─────────────────────────────────────────────
-
-async def generate_authentication_options_for_user(
-    email: str,
-    session: AsyncSession,
-) -> str:
-
-    user = await user_service.get_user_by_email(email, session)
-    if user is None:
-        raise ValueError("User not found")
-
-    if not user.credentials:
-        raise ValueError("No WebAuthn credentials registered for this user")
-
-    allow_credentials = [
-        PublicKeyCredentialDescriptor(
-            id=base64url_to_bytes(cred.credential_id),
-            transports=(
-                [AuthenticatorTransport(t) for t in json.loads(cred.transports)]
-                if cred.transports
-                else []
-            ),
+    if len(encodings) > 1:
+        raise ValueError(
+            "Обнаружено несколько лиц. "
+            "В кадре должно быть только одно лицо."
         )
-        for cred in user.credentials
-    ]
 
-    authentication_options = webauthn.generate_authentication_options(
-        rp_id=settings.WEBAUTHN_RP_ID,
-        allow_credentials=allow_credentials,
-        user_verification=UserVerificationRequirement.PREFERRED,
-    )
+    return encodings[0].tolist()
 
-    await _store_challenge(email, authentication_options.challenge, "login")
+def compare_face_embeddings(
+    known_embedding: list[float],
+    candidate_embedding: list[float],
+    threshold: float | None = None,
+) -> tuple[bool, float]:
+    if threshold is None:
+        threshold = settings.FACE_DISTANCE_THRESHOLD
 
-    return options_to_json(authentication_options)
+    known = np.array(known_embedding)
+    candidate = np.array(candidate_embedding)
 
+    distances = face_recognition.face_distance([known], candidate)
+    distance = float(distances[0])
 
-async def verify_authentication(
-    email: str,
-    credential_json: str,
-    session: AsyncSession,
-) -> dict:
+    is_match = distance <= threshold
+    return is_match, distance
 
-    from datetime import timedelta
+async def generate_otp(email: str) -> str:
+    code = f"{random.randint(0, 999999):06d}"
+    key = f"{OTP_REDIS_PREFIX}{email}"
 
-    expected_challenge = await _pop_challenge(email, "login")
+    await redis_client.set(name=key, value=code, ex=settings.OTP_TTL_SECONDS)
 
-    credential = parse_authentication_credential_json(credential_json)
+    logger.info("=" * 50)
+    logger.info(f"[OTP] Код для {email}: {code}")
+    logger.info(f"[OTP] Действует {settings.OTP_TTL_SECONDS} секунд")
+    logger.info("=" * 50)
 
-    # Находим сохранённый ключ в БД
-    statement = select(WebAuthnCredential).where(
-        WebAuthnCredential.credential_id == credential.id
-    )
-    result = await session.execute(statement)
-    stored_credential = result.scalars().first()
+    print(f"\n{'='*50}")
+    print(f"[OTP] Код для {email}: {code}")
+    print(f"[OTP] Действует {settings.OTP_TTL_SECONDS} секунд")
+    print(f"{'='*50}\n")
 
-    if stored_credential is None:
-        raise ValueError("Credential not found in database")
+    return code
 
-    verification = webauthn.verify_authentication_response(
-        credential=credential,
-        expected_challenge=expected_challenge,
-        expected_rp_id=settings.WEBAUTHN_RP_ID,
-        expected_origin=settings.WEBAUTHN_RP_ORIGIN,
-        credential_public_key=base64url_to_bytes(stored_credential.public_key),
-        credential_current_sign_count=stored_credential.sign_count,
-    )
+async def verify_otp(email: str, otp_code: str) -> bool:
+    key = f"{OTP_REDIS_PREFIX}{email}"
 
-    # Обновляем sign_count для защиты от клонирования ключа
-    stored_credential.sign_count = verification.new_sign_count
-    session.add(stored_credential)
-    await session.commit()
+    stored_code = await redis_client.get(key)
 
-    # Выдаём JWT-токены
-    user = await user_service.get_user_by_email(email, session)
+    if stored_code is None:
+        logger.warning(f"[OTP] Код не найден или истёк для {email}")
+        return False
 
-    if user.is_locked:
-        raise ValueError("Ваш аккаунт заблокирован. Обратитесь к администратору.")
+    if stored_code != otp_code:
+        logger.warning(f"[OTP] Неверный код для {email}")
+        return False
 
-    access_token = create_access_token(
-        user_data={"email": user.email, "user_uid": str(user.id)},
-    )
-    refresh_token = create_access_token(
-        user_data={"email": user.email, "user_uid": str(user.id)},
-        refresh=True,
-        expiry=timedelta(days=30),
-    )
-
-    return {
-        "message": "WebAuthn login success",
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "user": {
-            "email": user.email,
-            "uid": str(user.id),
-        },
-    }
-
+    await redis_client.delete(key)
+    logger.info(f"[OTP] Успешная верификация для {email}")
+    return True
 
 async def create_audit_log(
     session: AsyncSession,
@@ -269,14 +109,14 @@ async def create_audit_log(
     status: str,
     user_id: int | None = None,
     ip_address: str | None = None,
-    user_agent: str | None = None
-):
+    user_agent: str | None = None,
+) -> None:
     log_entry = AuditLog(
         user_id=user_id,
         action=action,
         status=status,
         ip_address=ip_address,
-        user_agent=user_agent
+        user_agent=user_agent,
     )
     session.add(log_entry)
     await session.commit()
