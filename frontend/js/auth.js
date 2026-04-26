@@ -1,6 +1,7 @@
 
 import * as API from './api.js';
 import * as Camera from './camera.js';
+import * as Liveness from './liveness.js';
 
 let currentAccessToken = null;
 let currentUserEmail = null;
@@ -120,6 +121,7 @@ function initLoginPage() {
     const instructionText = document.getElementById('instruction-text');
 
     let currentTab = 'login';
+    let isProcessing = false;  // Блокировка дублей: предотвращает повторные вызовы fetch
 
     function setTab(tab) {
         currentTab = tab;
@@ -237,18 +239,37 @@ function initLoginPage() {
         }
     });
 
+    // =======================================================================
+    // РЕЖИМ LOGIN: детекция лица без моргания, жёсткая обработка ошибок
+    // =======================================================================
     async function showFaceVerification(email) {
         if (securityInfoBlock) securityInfoBlock.style.display = 'none';
-        if (cameraSection) cameraSection.style.display = 'block';
+        if (cameraSection) {
+            cameraSection.style.display = 'block';
+            cameraSection.classList.remove('camera-section--fade-out');
+            cameraSection.style.opacity = '1';
+        }
         if (cameraPlaceholder) cameraPlaceholder.style.display = 'none';
+
+        // Скрываем сообщение об ошибке при новом открытии камеры
+        const cameraErrorMsg = document.getElementById('camera-error-msg');
+        if (cameraErrorMsg) cameraErrorMsg.style.display = 'none';
+
+        // Убираем зелёную обводку от предыдущей проверки
+        const cameraContainer = document.querySelector('.camera-container');
+        if (cameraContainer) cameraContainer.classList.remove('camera-container--liveness-ok');
+
+        const livenessOverlay = document.getElementById('liveness-overlay');
 
         if (instructionBlock) {
             instructionBlock.style.display = 'flex';
         }
+        // if (mode === 'login') — НЕ требуем моргания, только детекция лица
         if (instructionText) {
-            instructionText.textContent = 'Посмотрите в камеру и нажмите «Сделать снимок»';
+            instructionText.textContent = 'Расположите лицо в кадре для входа 📷';
         }
 
+        // --- Запуск камеры ---
         try {
             await Camera.initCamera(cameraVideo);
             if (cameraPlaceholder) cameraPlaceholder.style.display = 'none';
@@ -257,38 +278,179 @@ function initLoginPage() {
             return;
         }
 
+        // --- Скрываем кнопку ручного захвата (auto-capture при обнаружении лица) ---
         if (btnCaptureLogin) {
-            const newBtn = btnCaptureLogin.cloneNode(true);
-            btnCaptureLogin.parentNode.replaceChild(newBtn, btnCaptureLogin);
+            btnCaptureLogin.style.display = 'none';
+        }
 
-            newBtn.addEventListener('click', async () => {
-                newBtn.disabled = true;
-                newBtn.innerHTML = '<div class="spinner"></div><span>Проверка...</span>';
+        // --- Загрузка моделей face-api.js ---
+        if (livenessOverlay) livenessOverlay.style.display = 'flex';
+        updateLivenessUI('loading', 'Загрузка моделей детекции лица...');
 
+        try {
+            await Liveness.loadModels();
+        } catch (err) {
+            console.error('[LOGIN] Не удалось загрузить модели:', err);
+            updateLivenessUI('no-face', 'Детекция лица недоступна');
+            // if (mode === 'login') — жёсткий отказ, без fallback
+            Camera.stopCamera();
+            if (livenessOverlay) {
+                setTimeout(() => { livenessOverlay.style.display = 'none'; }, 2000);
+            }
+            notify('Ошибка', 'Не удалось загрузить модели распознавания. Попробуйте обновить страницу.', 'error');
+            hideCameraAndOTP();
+            return;
+        }
+
+        // --- if (mode === 'login'): Запуск Face Detection БЕЗ моргания ---
+        // Включает задержку 1500ms внутри liveness.js для фокусировки камеры
+        Liveness.startFaceDetection(
+            cameraVideo,
+            // onFaceDetected — лицо стабильно 1500ms → авто-захват и верификация
+            async () => {
+                // Блокировка дублей
+                if (isProcessing) return;
+                isProcessing = true;
+
+                // Обновляем UI → анализ
+                updateLivenessUI('success', 'Анализ биометрии...');
+                if (instructionText) {
+                    instructionText.textContent = 'Лицо обнаружено. Верификация...';
+                }
+
+                // Визуальный эффект «вспышки» перед захватом
+                const flash = document.createElement('div');
+                flash.className = 'capture-flash';
+                const flashContainer = cameraVideo.closest('.camera-container') || cameraVideo.parentElement;
+                if (flashContainer) flashContainer.appendChild(flash);
+                setTimeout(() => flash.remove(), 100);
+
+                // Автозахват кадра и отправка на /auth/face/verify
                 try {
                     const snapshot = Camera.captureFrame(cameraVideo);
                     const result = await API.verifyFace(email, snapshot);
 
+                    Camera.deactivateScanAnimation();
+
                     if (result.otp_sent) {
-                        notify('Лицо распознано', 'OTP-код отправлен. Проверьте консоль сервера.', 'success');
+                        notify('Лицо распознано', 'Код отправлен на вашу почту.', 'success');
+                        if (livenessOverlay) livenessOverlay.style.display = 'none';
                         showOTPInput(email);
                     }
                 } catch (error) {
-                    notify('Ошибка', error.message, 'error');
-                    newBtn.disabled = false;
-                    newBtn.innerHTML = '📸 Сделать снимок';
+                    // if (mode === 'login') — ЖЁСТКАЯ обработка ошибок:
+                    // Камера выключается, форма сбрасывается, НИКАКИХ повторных попыток
+                    Camera.deactivateScanAnimation();
+                    Camera.stopCamera();
+                    Liveness.stopLivenessCheck();
+
+                    if (cameraContainer) cameraContainer.classList.remove('camera-container--liveness-ok');
+                    if (livenessOverlay) livenessOverlay.style.display = 'none';
+
+                    // Строгий красный Toast — «Доступ запрещён», без retry
+                    notify('Доступ запрещён', 'Лицо не распознано. Доступ запрещён.', 'error');
+
+                    // Полный сброс: камера скрыта, форма входа восстановлена
+                    hideCameraAndOTP();
+                    if (authForm) authForm.reset();
+                } finally {
+                    isProcessing = false;
                 }
-            });
+            },
+            // onStatusUpdate — обновление UI-оверлея
+            (state, message) => {
+                updateLivenessUI(state, message);
+            }
+        );
+    }
+
+    /**
+     * Обновляет UI-оверлей liveness detection (статус + CSS-класс).
+     */
+    function updateLivenessUI(state, message) {
+        const overlay = document.getElementById('liveness-overlay');
+        const status = document.getElementById('liveness-status');
+
+        if (!overlay || !status) return;
+
+        // Убираем все предыдущие состояния
+        overlay.className = 'liveness-overlay';
+        if (state) {
+            overlay.classList.add(`liveness-overlay--${state}`);
         }
+        status.textContent = message;
+    }
+
+    // enableManualCapture для LOGIN удалён — в режиме LOGIN повторные попытки запрещены.
+
+    /**
+     * Показывает контекстное сообщение об ошибке над камерой.
+     * Парсит текст от сервера и подбирает понятную формулировку.
+     */
+    function showCameraError(errorMessage) {
+        const errEl = document.getElementById('camera-error-msg');
+        if (!errEl) return;
+
+        const msgLower = errorMessage.toLowerCase();
+
+        let displayMessage;
+        if (msgLower.includes('несколько лиц') || msgLower.includes('multiple face')) {
+            displayMessage = '👥 Убедитесь, что в кадре только один человек';
+        } else if (msgLower.includes('не обнаружено') || msgLower.includes('not detected') || msgLower.includes('не найдено')) {
+            displayMessage = '😕 Лицо не распознано — попробуйте ещё раз';
+        } else if (msgLower.includes('не совпало') || msgLower.includes('не распознано')) {
+            displayMessage = '🔒 Лицо не совпало с зарегистрированным. Попробуйте снова.';
+        } else {
+            displayMessage = errorMessage;
+        }
+
+        errEl.textContent = displayMessage;
+        errEl.style.display = 'block';
+
+        // Перезапускаем анимацию shake
+        errEl.style.animation = 'none';
+        requestAnimationFrame(() => {
+            errEl.style.animation = '';
+        });
     }
 
     function showOTPInput(email) {
-        if (cameraSection) cameraSection.style.display = 'none';
-        if (otpSection) otpSection.style.display = 'block';
+        // Плавно скрываем камеру через CSS-transition (fade-out + translateY)
+        if (cameraSection) {
+            cameraSection.classList.add('camera-section--fade-out');
+            // После окончания transition (500ms) — полностью убираем из потока
+            setTimeout(() => {
+                cameraSection.style.display = 'none';
+                cameraSection.classList.remove('camera-section--fade-out');
+            }, 500);
+        }
+
+        // Плавно проявляем OTP-секцию с задержкой
+        if (otpSection) {
+            otpSection.style.display = 'block';
+            otpSection.style.opacity = '0';
+            otpSection.style.transform = 'translateY(12px)';
+            otpSection.style.transition = 'opacity 0.6s ease-in-out, transform 0.6s ease-in-out';
+            // Запускаем после fade-out камеры
+            setTimeout(() => {
+                requestAnimationFrame(() => {
+                    otpSection.style.opacity = '1';
+                    otpSection.style.transform = 'translateY(0)';
+                });
+            }, 300);
+        }
+
         Camera.stopCamera();
+        Liveness.stopLivenessCheck();
+
+        // Убираем liveness-артефакты
+        const cameraContainer = document.querySelector('.camera-container');
+        if (cameraContainer) cameraContainer.classList.remove('camera-container--liveness-ok');
+        const livenessOverlay = document.getElementById('liveness-overlay');
+        if (livenessOverlay) livenessOverlay.style.display = 'none';
 
         if (instructionText) {
-            instructionText.textContent = 'Введите 6-значный OTP-код из консоли сервера';
+            instructionText.textContent = 'Введите 6-значный OTP-код из письма';
         }
 
         if (otpInputs.length > 0) otpInputs[0].focus();
@@ -323,6 +485,9 @@ function initLoginPage() {
         });
     }
 
+    // =======================================================================
+    // РЕЖИМ REGISTER: регистрация лица С проверкой моргания (liveness)
+    // =======================================================================
     if (btnEnrollFace) {
         btnEnrollFace.addEventListener('click', async () => {
             if (promoModal) promoModal.classList.add('hidden');
@@ -330,11 +495,21 @@ function initLoginPage() {
             if (securityInfoBlock) securityInfoBlock.style.display = 'none';
             if (cameraSection) cameraSection.style.display = 'block';
 
+            // Убираем артефакты от предыдущих сессий
+            const cameraContainer = document.querySelector('.camera-container');
+            if (cameraContainer) cameraContainer.classList.remove('camera-container--liveness-ok');
+            const cameraErrorMsg = document.getElementById('camera-error-msg');
+            if (cameraErrorMsg) cameraErrorMsg.style.display = 'none';
+
+            const livenessOverlay = document.getElementById('liveness-overlay');
+
             if (instructionBlock) instructionBlock.style.display = 'flex';
+            // if (mode === 'register') — требуем моргание для подтверждения живости
             if (instructionText) {
-                instructionText.textContent = 'Посмотрите в камеру для регистрации лица';
+                instructionText.textContent = 'Подтвердите живость — моргните перед камерой 👁️';
             }
 
+            // --- Запуск камеры ---
             try {
                 await Camera.initCamera(cameraVideo);
                 if (cameraPlaceholder) cameraPlaceholder.style.display = 'none';
@@ -343,27 +518,133 @@ function initLoginPage() {
                 return;
             }
 
+            // Скрываем кнопку ручного захвата — liveness сделает auto-capture
             const captureBtn = document.getElementById('btn-capture-login');
-            if (captureBtn) {
-                const newBtn = captureBtn.cloneNode(true);
-                captureBtn.parentNode.replaceChild(newBtn, captureBtn);
+            if (captureBtn) captureBtn.style.display = 'none';
 
-                newBtn.addEventListener('click', async () => {
-                    newBtn.disabled = true;
-                    newBtn.innerHTML = '<div class="spinner"></div><span>Сохранение...</span>';
+            // --- Загрузка моделей face-api.js ---
+            if (livenessOverlay) livenessOverlay.style.display = 'flex';
+            updateLivenessUI('loading', 'Загрузка моделей проверки живости...');
 
-                    try {
-                        const snapshot = Camera.captureFrame(cameraVideo);
-                        await API.enrollFace(currentAccessToken, snapshot);
-                        notify('Успех', 'Лицо зарегистрировано!', 'success');
-                        Camera.stopCamera();
-                        showSuccess(currentUserEmail);
-                    } catch (error) {
-                        notify('Ошибка', error.message, 'error');
-                        newBtn.disabled = false;
-                        newBtn.innerHTML = '📸 Сделать снимок';
+            try {
+                await Liveness.loadModels();
+            } catch (err) {
+                console.error('[REGISTER] Fallback to manual capture:', err);
+                updateLivenessUI('no-face', 'Проверка живости недоступна');
+                if (livenessOverlay) {
+                    setTimeout(() => { livenessOverlay.style.display = 'none'; }, 2000);
+                }
+                // Fallback для регистрации: показываем кнопку ручного захвата
+                enableManualCaptureForEnroll(captureBtn);
+                return;
+            }
+
+            // --- if (mode === 'register'): Запуск Liveness Detection (моргание) ---
+            Liveness.startLivenessCheck(
+                cameraVideo,
+                // onBlinkDetected — моргание зафиксировано
+                // ВАЖНО: НЕ делаем снимок сразу! Глаза ещё могут быть закрыты.
+                // Вместо этого: стоп детекции → задержка 800ms → авто-снимок.
+                () => {
+                    // Блокировка дублей
+                    if (isProcessing) return;
+                    isProcessing = true;
+
+                    // ① Немедленно останавливаем цикл детекции (защита от двойного срабатывания)
+                    Liveness.stopLivenessCheck();
+
+                    // ② Жёлтая рамка-предупреждение + сообщение «Замрите»
+                    if (cameraContainer) {
+                        cameraContainer.classList.remove('camera-container--liveness-ok');
+                        cameraContainer.classList.add('camera-container--preparing');
                     }
-                });
+                    updateLivenessUI('warning', 'Живость подтверждена! Замрите...');
+                    if (instructionText) {
+                        instructionText.textContent = 'Живость подтверждена! Замрите... 📸';
+                    }
+
+                    // ③ Задержка 800ms — даём время открыть глаза
+                    setTimeout(async () => {
+                        // ④ Визуальный эффект «вспышки»
+                        const flash = document.createElement('div');
+                        flash.className = 'capture-flash';
+                        const container = cameraVideo.closest('.camera-container') || cameraVideo.parentElement;
+                        if (container) container.appendChild(flash);
+                        setTimeout(() => flash.remove(), 100);
+
+                        // Обновляем UI → сохранение
+                        if (cameraContainer) {
+                            cameraContainer.classList.remove('camera-container--preparing');
+                            cameraContainer.classList.add('camera-container--liveness-ok');
+                        }
+                        updateLivenessUI('success', 'Сохранение...');
+                        if (instructionText) {
+                            instructionText.textContent = 'Сохранение... ⏳';
+                        }
+
+                        // ⑤ Автозахват кадра и отправка на бэкенд (без ожидания клика)
+                        try {
+                            const snapshot = Camera.captureFrame(cameraVideo);
+                            Camera.deactivateScanAnimation();
+                            await API.enrollFace(currentAccessToken, snapshot);
+                            notify('Успех', 'Лицо зарегистрировано!', 'success');
+                            Camera.stopCamera();
+                            if (livenessOverlay) livenessOverlay.style.display = 'none';
+                            showSuccess(currentUserEmail);
+                        } catch (error) {
+                            Camera.deactivateScanAnimation();
+                            if (cameraContainer) {
+                                cameraContainer.classList.remove('camera-container--liveness-ok');
+                                cameraContainer.classList.remove('camera-container--preparing');
+                            }
+                            if (livenessOverlay) livenessOverlay.style.display = 'none';
+                            showCameraError(error.message);
+                            // Для регистрации — разрешаем повторную попытку
+                            enableManualCaptureForEnroll(captureBtn);
+                        } finally {
+                            isProcessing = false;
+                        }
+                    }, 800);
+                },
+                // onStatusUpdate — обновление UI-оверлея
+                (state, message) => {
+                    updateLivenessUI(state, message);
+                }
+            );
+        });
+    }
+
+    /**
+     * Fallback для REGISTER: кнопка ручного захвата (если liveness недоступен).
+     */
+    function enableManualCaptureForEnroll(captureBtn) {
+        if (!captureBtn) return;
+        captureBtn.style.display = '';  // Показываем кнопку
+
+        const newBtn = captureBtn.cloneNode(true);
+        newBtn.innerHTML = '📸 Сделать снимок';
+        newBtn.disabled = false;
+        newBtn.classList.remove('btn--scanning');
+        captureBtn.parentNode.replaceChild(newBtn, captureBtn);
+
+        newBtn.addEventListener('click', async () => {
+            newBtn.disabled = true;
+            newBtn.classList.add('btn--scanning');
+            newBtn.innerHTML = '<div class="spinner"></div><span>Анализ биометрии...</span>';
+
+            try {
+                const snapshot = Camera.captureFrame(cameraVideo);
+                Camera.deactivateScanAnimation();
+                await API.enrollFace(currentAccessToken, snapshot);
+                notify('Успех', 'Лицо зарегистрировано!', 'success');
+                Camera.stopCamera();
+                showSuccess(currentUserEmail);
+            } catch (error) {
+                Camera.deactivateScanAnimation();
+                showCameraError(error.message);
+                newBtn.disabled = false;
+                newBtn.classList.remove('btn--scanning');
+                newBtn.innerHTML = '📸 Сделать снимок';
             }
         });
     }

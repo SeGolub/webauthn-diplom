@@ -22,14 +22,11 @@ class ErrorResponse(BaseModel):
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """Регистрирует все глобальные обработчики ошибок на экземпляре FastAPI."""
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
-        """REFACTORED: HTTPException теперь возвращается в едином JSON-формате
-        вместо стандартного {"detail": "..."}."""
         return JSONResponse(
             status_code=exc.status_code,
             content=ErrorResponse(

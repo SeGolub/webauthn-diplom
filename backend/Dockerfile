@@ -1,24 +1,23 @@
 FROM python:3.11-slim
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 WORKDIR /app
 
-# Системные зависимости для dlib / face_recognition:
-# cmake и build-essential нужны для компиляции C++ модулей dlib,
-# libopenblas-dev — быстрая линейная алгебра (ускоряет face_recognition).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake \
-    build-essential \
-    libopenblas-dev \
-    liblapack-dev \
-    libx11-dev \
+    libgl1 \
+    libglib2.0-0 \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем и устанавливаем зависимости
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем директорию с исходным кодом
+RUN uv pip install --system setuptools wheel
+RUN uv pip install --system -r requirements.txt
+
+RUN mkdir -p /root/.deepface/weights && \
+    wget -qO /root/.deepface/weights/arcface_weights.h5 https://github.com/serengil/deepface_models/releases/download/v1.0/arcface_weights.h5
+
 COPY ./src ./src
 
-# Запускаем FastAPI через Uvicorn
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

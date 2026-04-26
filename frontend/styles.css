@@ -2037,3 +2037,264 @@ body {
     padding-bottom: var(--space-3);
     border-bottom: 1px solid var(--color-border-subtle);
 }
+
+/* ---- Scanner Overlay — биометрический сканер поверх камеры ---- */
+.scanner-overlay {
+    position: absolute;
+    inset: 8%;
+    z-index: 5;
+    pointer-events: none;
+    border-radius: var(--radius-md);
+}
+
+/* Угловые маркеры сканера */
+.scanner-corners {
+    position: absolute;
+    inset: 0;
+}
+
+.scanner-corner {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-color: rgba(14, 165, 233, 0.7);
+    border-style: solid;
+    border-width: 0;
+    transition: border-color 0.3s ease;
+}
+
+.scanner-corner--tl {
+    top: 0; left: 0;
+    border-top-width: 3px;
+    border-left-width: 3px;
+    border-top-left-radius: 8px;
+}
+
+.scanner-corner--tr {
+    top: 0; right: 0;
+    border-top-width: 3px;
+    border-right-width: 3px;
+    border-top-right-radius: 8px;
+}
+
+.scanner-corner--bl {
+    bottom: 0; left: 0;
+    border-bottom-width: 3px;
+    border-left-width: 3px;
+    border-bottom-left-radius: 8px;
+}
+
+.scanner-corner--br {
+    bottom: 0; right: 0;
+    border-bottom-width: 3px;
+    border-right-width: 3px;
+    border-bottom-right-radius: 8px;
+}
+
+/* Сканирующая линия */
+.scanner-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(14, 165, 233, 0.3) 15%,
+        rgba(14, 165, 233, 0.9) 50%,
+        rgba(14, 165, 233, 0.3) 85%,
+        transparent 100%
+    );
+    box-shadow: 0 0 12px rgba(14, 165, 233, 0.5), 0 0 24px rgba(14, 165, 233, 0.2);
+    opacity: 0;
+    transform: translateY(0);
+    transition: opacity 0.3s ease;
+}
+
+/* Активное состояние — запуск анимации */
+.scanner-overlay--active .scanner-corner {
+    border-color: rgba(14, 165, 233, 1);
+    filter: drop-shadow(0 0 4px rgba(14, 165, 233, 0.5));
+}
+
+.scanner-overlay--active .scanner-line {
+    opacity: 1;
+    animation: scanLine 1.8s ease-in-out infinite;
+}
+
+@keyframes scanLine {
+    0%   { top: 0;    opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+}
+
+/* ---- Сообщение об ошибке над камерой ---- */
+.camera-error-msg {
+    padding: 10px 16px;
+    margin-top: var(--space-3);
+    background: var(--color-red-subtle);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-sm);
+    color: var(--color-red);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    text-align: center;
+    animation: shakeIn 0.4s ease-out;
+}
+
+@keyframes shakeIn {
+    0%   { opacity: 0; transform: translateX(-8px); }
+    25%  { transform: translateX(6px); }
+    50%  { transform: translateX(-4px); }
+    75%  { transform: translateX(2px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+
+/* ---- Плавное скрытие камеры (используется из JS) ---- */
+.camera-section--fade-out {
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* ---- Кнопка в состоянии сканирования ---- */
+.btn--scanning {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn--scanning::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.15) 50%,
+        transparent 100%
+    );
+    animation: btnScanShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes btnScanShimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* ---- Liveness Detection Overlay ---- */
+.liveness-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 16px;
+    pointer-events: none;
+    border-radius: var(--radius-lg);
+}
+
+.liveness-overlay__status {
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    transition: all 0.3s ease;
+    text-align: center;
+    max-width: 90%;
+}
+
+/* Состояния liveness */
+.liveness-overlay--waiting .liveness-overlay__status {
+    background: rgba(14, 165, 233, 0.7);
+    box-shadow: 0 0 16px rgba(14, 165, 233, 0.3);
+}
+
+.liveness-overlay--tracking .liveness-overlay__status {
+    background: rgba(245, 158, 11, 0.7);
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.3);
+}
+
+.liveness-overlay--no-face .liveness-overlay__status {
+    background: rgba(239, 68, 68, 0.7);
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.3);
+}
+
+.liveness-overlay--success .liveness-overlay__status {
+    background: rgba(16, 185, 129, 0.85);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+    font-weight: 600;
+}
+
+/* Зелёная обводка камеры при успешном моргании */
+.camera-container--liveness-ok {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 24px rgba(16, 185, 129, 0.4), inset 0 0 12px rgba(16, 185, 129, 0.1);
+    transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* Пульсация зелёной обводки */
+.camera-container--liveness-ok::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: calc(var(--radius-lg) + 3px);
+    border: 2px solid rgba(16, 185, 129, 0.5);
+    animation: livenessPulse 1.5s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes livenessPulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50%      { opacity: 0.8; transform: scale(1.01); }
+}
+
+/* Жёлтая предупреждающая обводка камеры (фаза «Смотрите в камеру», 800ms задержка) */
+.camera-container--preparing {
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 24px rgba(245, 158, 11, 0.45), inset 0 0 12px rgba(245, 158, 11, 0.12);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.camera-container--preparing::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: calc(var(--radius-lg) + 3px);
+    border: 2px solid rgba(245, 158, 11, 0.5);
+    animation: preparingPulse 0.8s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes preparingPulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.01); }
+}
+
+/* Состояние warning для liveness overlay (жёлтый бейдж) */
+.liveness-overlay--warning .liveness-overlay__status {
+    background: rgba(245, 158, 11, 0.85);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+    font-weight: 600;
+}
+
+/* Визуальный эффект «вспышки» при авто-снимке */
+.capture-flash {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(255, 255, 255, 0.75);
+    border-radius: var(--radius-lg);
+    pointer-events: none;
+    animation: flashFade 100ms ease-out forwards;
+}
+
+@keyframes flashFade {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+}

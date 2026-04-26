@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="description" content="BioAuth — Вход в систему двухфакторной аутентификации (Лицо + OTP)">
     <title>BioAuth — Вход в систему</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,6 +12,7 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/dist/face-api.js"></script>
 </head>
 
 <body>
@@ -227,7 +228,13 @@
                                 </div>
                                 <video id="camera-video" autoplay playsinline muted
                                     style="width: 100%; border-radius: 12px; display: block;"></video>
+                                <div id="liveness-overlay" class="liveness-overlay" style="display: none;">
+                                    <div class="liveness-overlay__status" id="liveness-status">
+                                        Загрузка моделей...
+                                    </div>
+                                </div>
                             </div>
+                            <div id="camera-error-msg" class="camera-error-msg" style="display: none;"></div>
                             <button type="button" class="btn btn--primary btn--full" id="btn-capture-login"
                                 style="margin-top: 1rem;">
                                 📸 Сделать снимок
@@ -239,7 +246,7 @@
                                 <div style="font-size: 3rem; margin-bottom: 1rem;">🔐</div>
                                 <h3 style="color: var(--color-text-primary); margin-bottom: 0.5rem;">Введите OTP-код</h3>
                                 <p style="color: var(--color-text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">
-                                    6-значный код отправлен (проверьте консоль сервера)
+                                    6-значный код отправлен на вашу почту
                                 </p>
                                 <div class="otp-inputs" style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1.5rem;">
                                     <input type="text" maxlength="1" class="otp-input" inputmode="numeric" pattern="[0-9]">

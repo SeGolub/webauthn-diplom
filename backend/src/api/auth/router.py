@@ -3,11 +3,10 @@ from fastapi import APIRouter, status, HTTPException, Depends, Request, Backgrou
 from fastapi.responses import JSONResponse
 from typing import Annotated
 from datetime import timedelta, datetime, timezone
-import secrets
+
 
 from src.core.database import get_session
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel import select
 
 from src.core.security import (
     decode_token,
@@ -17,7 +16,7 @@ from src.core.security import (
 )
 from src.api.user import service as user_service
 from src.api.user.schema import UserCreate
-from src.api.user.models import User, BackupCode
+from src.api.user.models import User
 from src.api.auth.schemas import (
     UserLogin,
     TokenResponse,
@@ -150,7 +149,7 @@ async def face_enroll(
     user_agent = request.headers.get("user-agent", "Unknown")
 
     try:
-        embedding = auth_service.extract_face_embedding(data.image_base64)
+        embedding = await auth_service.extract_face_embedding(data.image_base64)
     except ValueError as e:
         await create_audit_log(
             session=session,
@@ -215,7 +214,7 @@ async def face_verify(
         )
 
     try:
-        candidate_embedding = auth_service.extract_face_embedding(data.image_base64)
+        candidate_embedding = await auth_service.extract_face_embedding(data.image_base64)
     except ValueError as e:
         await create_audit_log(
             session=session,
@@ -232,7 +231,7 @@ async def face_verify(
 
     known_embedding = json.loads(user.face_embedding)
 
-    is_match, distance = auth_service.compare_face_embeddings(
+    is_match, distance = await auth_service.compare_face_embeddings(
         known_embedding=known_embedding,
         candidate_embedding=candidate_embedding,
     )

@@ -28,7 +28,6 @@ async def get_all_users(
     skip: int = Query(0, ge=0, description="Сколько записей пропустить"),
     limit: int = Query(50, ge=1, le=100, description="Размер страницы (макс. 100)"),
 ):
-    """Получить всех пользователей (пагинация)."""
     users, total = await admin_service.get_all_users(session, skip, limit)
 
     return PaginatedResponse(
@@ -49,7 +48,6 @@ async def get_audit_logs(
     skip: int = Query(0, ge=0, description="Сколько записей пропустить"),
     limit: int = Query(50, ge=1, le=100, description="Размер страницы (макс. 100)"),
 ):
-    """Получить журнал аудита (пагинация)."""
     logs, total = await admin_service.get_audit_logs(session, skip, limit)
 
     return PaginatedResponse(
@@ -71,7 +69,6 @@ async def toggle_user_lock(
     request: Request,
     admin: User = Depends(get_current_admin),
 ):
-    """Заблокировать / разблокировать пользователя."""
     client_ip = request.client.host if request.client else "Unknown"
     user_agent = request.headers.get("user-agent", "Unknown")
 
@@ -106,8 +103,6 @@ async def reset_user_face(
     request: Request,
     admin: User = Depends(get_current_admin),
 ):
-    """Обнуляет face_embedding — пользователю нужно будет заново
-    зарегистрировать лицо через /auth/face/enroll."""
     client_ip = request.client.host if request.client else "Unknown"
     user_agent = request.headers.get("user-agent", "Unknown")
 

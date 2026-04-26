@@ -21,21 +21,31 @@ function _extractErrorMessage(errBody, fallback) {
     return fallback;
 }
 
-async function _authFetch(url, options = {}) {
-    const response = await fetch(url, options);
-    if (response.status === 401) {
+
+async function _safeFetch(url, options = {}, isAuth = false) {
+    let response;
+    try {
+        response = await fetch(url, options);
+    } catch (e) {
+        throw new Error('Сервер недоступен или отсутствует подключение к сети.');
+    }
+    if (isAuth && response.status === 401) {
         _handleUnauthorized();
         throw new Error('Сессия истекла. Пожалуйста, войдите снова.');
     }
+    if (response.status >= 500) {
+        throw new Error('Внутренняя ошибка сервера (500). Пожалуйста, попробуйте позже.');
+    }
     return response;
 }
+
 
 export async function register(email, password) {
     if (password.length < 8) {
         throw new Error("Пароль должен содержать минимум 8 символов");
     }
 
-    const response = await fetch(`${BASE_URL}/auth/register/`, {
+    const response = await _safeFetch(`${BASE_URL}/auth/register/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -54,7 +64,7 @@ export async function register(email, password) {
 }
 
 export async function loginStep1(email, password) {
-    const response = await fetch(`${BASE_URL}/auth/login/`, {
+    const response = await _safeFetch(`${BASE_URL}/auth/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -68,14 +78,14 @@ export async function loginStep1(email, password) {
 }
 
 export async function enrollFace(accessToken, imageBase64) {
-    const response = await _authFetch(`${BASE_URL}/auth/face/enroll`, {
+    const response = await _safeFetch(`${BASE_URL}/auth/face/enroll`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({ image_base64: imageBase64 })
-    });
+    }, true);
 
     if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
@@ -85,7 +95,7 @@ export async function enrollFace(accessToken, imageBase64) {
 }
 
 export async function verifyFace(email, imageBase64) {
-    const response = await fetch(`${BASE_URL}/auth/face/verify`, {
+    const response = await _safeFetch(`${BASE_URL}/auth/face/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, image_base64: imageBase64 })
@@ -99,7 +109,7 @@ export async function verifyFace(email, imageBase64) {
 }
 
 export async function verifyOTP(email, otpCode) {
-    const response = await fetch(`${BASE_URL}/auth/verify-otp`, {
+    const response = await _safeFetch(`${BASE_URL}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp_code: otpCode })
@@ -113,26 +123,26 @@ export async function verifyOTP(email, otpCode) {
 }
 
 export async function getProfile(accessToken) {
-    const response = await _authFetch(`${BASE_URL}/users/me`, {
+    const response = await _safeFetch(`${BASE_URL}/users/me`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    }, true);
     if (!response.ok) throw new Error('Ошибка получения профиля');
     return await response.json();
 }
 
 export async function getFaceStatus(accessToken) {
-    const response = await _authFetch(`${BASE_URL}/users/me/face-status`, {
+    const response = await _safeFetch(`${BASE_URL}/users/me/face-status`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    }, true);
     if (!response.ok) throw new Error('Ошибка получения статуса лица');
     return await response.json();
 }
 
 export async function generateBackupCodes(accessToken) {
-    const response = await _authFetch(`${BASE_URL}/auth/backup-codes/generate`, {
+    const response = await _safeFetch(`${BASE_URL}/auth/backup-codes/generate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    }, true);
     if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
         throw new Error(_extractErrorMessage(errBody, 'Ошибка генерации резервных кодов'));
@@ -141,7 +151,7 @@ export async function generateBackupCodes(accessToken) {
 }
 
 export async function loginWithBackupCode(email, code) {
-    const response = await fetch(`${BASE_URL}/auth/login/backup-code`, {
+    const response = await _safeFetch(`${BASE_URL}/auth/login/backup-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code })
@@ -154,30 +164,30 @@ export async function loginWithBackupCode(email, code) {
 }
 
 export async function getAdminUsers(accessToken) {
-    const response = await _authFetch(`${BASE_URL}/admin/users`, {
+    const response = await _safeFetch(`${BASE_URL}/admin/users`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    }, true);
     if (!response.ok) throw new Error('Ошибка получения пользователей');
     return await response.json();
 }
 
 export async function getAdminAuditLogs(accessToken) {
-    const response = await _authFetch(`${BASE_URL}/admin/audit-logs`, {
+    const response = await _safeFetch(`${BASE_URL}/admin/audit-logs`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    }, true);
     if (!response.ok) throw new Error('Ошибка получения логов аудита');
     return await response.json();
 }
 
 export async function lockUser(accessToken, userId, isLocked) {
-    const response = await _authFetch(`${BASE_URL}/admin/users/${userId}/lock`, {
+    const response = await _safeFetch(`${BASE_URL}/admin/users/${userId}/lock`, {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({ is_locked: isLocked })
-    });
+    }, true);
     if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
         throw new Error(_extractErrorMessage(errBody, 'Ошибка изменения статуса'));
@@ -186,10 +196,10 @@ export async function lockUser(accessToken, userId, isLocked) {
 }
 
 export async function resetUserFace(accessToken, userId) {
-    const response = await _authFetch(`${BASE_URL}/admin/users/${userId}/reset-face`, {
+    const response = await _safeFetch(`${BASE_URL}/admin/users/${userId}/reset-face`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    }, true);
     if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
         throw new Error(_extractErrorMessage(errBody, 'Ошибка сброса биометрии'));
