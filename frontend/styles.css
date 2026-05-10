@@ -2298,3 +2298,131 @@ body {
     0%   { opacity: 1; }
     100% { opacity: 0; }
 }
+
+/* =========================================
+   Responsive & Mobile Optimization 
+   ========================================= */
+
+@media (max-width: 1024px) {
+    .auth-container, .dashboard-layout {
+        grid-template-columns: 1fr;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    
+    .dashboard-sidebar {
+        display: none; /* Mobile menu should be toggled by JS */
+    }
+
+    .auth-form-panel {
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+    }
+}
+
+@media (max-width: 768px) {
+    /* Layout & Container Padding */
+    .auth-section, .dashboard-section {
+        padding: var(--space-4);
+        min-height: auto;
+    }
+    
+    .auth-form-panel {
+        padding: var(--space-6) var(--space-4);
+    }
+
+    .biometric-panel {
+        padding: var(--space-6) var(--space-4);
+    }
+
+    /* Touch-Friendly Targets (Apple HIG >= 44px) */
+    .btn,
+    .input-group__input,
+    .otp-input,
+    .tab-switcher__btn {
+        min-height: 44px;
+    }
+
+    /* Stack buttons that might be in a row */
+    .promo-modal__actions {
+        flex-direction: column;
+        width: 100%;
+        gap: var(--space-3);
+        display: flex;
+    }
+    
+    /* Typography Scaling */
+    h1, .auth-form__title, .security-info-block__main-title {
+        font-size: var(--font-size-xl);
+    }
+    
+    /* Camera Container & Canvas Scaling */
+    .camera-container {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto;
+        aspect-ratio: 4/3; /* or padding-bottom hack */
+        border-radius: var(--radius-md);
+        display: block;
+    }
+
+    .camera-container video,
+    .camera-container canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: cover !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+
+    /* Toasts / Notifications Mobile Alignment */
+    .notifications-container {
+        bottom: 20px !important;
+        right: auto !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: 90% !important;
+        max-width: 400px;
+        align-items: center;
+        flex-direction: column-reverse; 
+    }
+
+    .notification {
+        width: 100% !important;
+    }
+    
+    /* Stats grid into 2 columns on mobile */
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Further adjustment for very small screens */
+    body {
+        font-size: var(--font-size-sm);
+    }
+
+    .header__title {
+        font-size: var(--font-size-md);
+    }
+
+    .auth-form-panel, .biometric-panel {
+        padding: var(--space-5) var(--space-3);
+    }
+
+    .otp-inputs {
+        gap: var(--space-1);
+    }
+    
+    .otp-input {
+        width: 40px;
+        height: 48px;
+        font-size: 1.1rem;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
