@@ -27,4 +27,4 @@ RUN mkdir -p /app/.deepface/weights && \
 COPY ./backend ./backend
 COPY ./frontend ./frontend
 
-CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD uvicorn backend.src.main:app --host 0.0.0.0 --port ${PORT:-8000}
