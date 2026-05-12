@@ -1,8 +1,11 @@
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
-    db_url: str
+    db_url: str = Field(alias="DATABASE_URL")
+    
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
 
@@ -22,13 +25,19 @@ class Settings(BaseSettings):
 
     DEBUG: bool = True
 
+    @field_validator("db_url", mode="before")
+    @classmethod
+    def fix_database_url(cls, v: str) -> str:
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [
             origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()
         ]
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
 settings = Settings()
