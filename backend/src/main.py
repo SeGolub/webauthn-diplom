@@ -61,3 +61,5 @@ async def health_check():
     return {"status": "ok", "message": "BioAuth API is running"}
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+
+
