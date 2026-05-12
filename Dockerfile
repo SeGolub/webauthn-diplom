@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DEEPFACE_HOME=/app/.deepface
+    DEEPFACE_HOME=/app/.deepface \
+    PYTHONPATH=/app/backend
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 

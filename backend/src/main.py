@@ -16,7 +16,7 @@ from src.core.database import init_db
 
 CURRENT_DIR = Path(__file__).resolve().parent
 
-FRONTEND_DIR = CURRENT_DIR.parent / "frontend"
+FRONTEND_DIR = CURRENT_DIR.parent.parent / "frontend"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
