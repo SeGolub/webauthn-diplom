@@ -42,7 +42,6 @@ class LockUserRequest(BaseModel):
 
 
 class AuditLogRead(BaseModel):
-    """Схема чтения записи аудита."""
     id: int
     user_id: int | None = None
     action: str

@@ -16,10 +16,10 @@ class Settings(BaseSettings):
     SMTP_EMAIL: str
     SMTP_PASSWORD: str
     SMTP_HOST: str = "smtp.gmail.com"
-    SMTP_PORT: int = 465
+    SMTP_PORT: int = 587
 
-    SMTP_STARTTLS: bool = False
-    SMTP_SSL_TLS: bool = True
+    SMTP_STARTTLS: bool = True
+    SMTP_SSL_TLS: bool = False
 
     CORS_ORIGINS: str = (
         "http://localhost:5500,http://127.0.0.1:5500,"

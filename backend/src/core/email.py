@@ -4,7 +4,6 @@ from src.core.config import settings
 
 logger = logging.getLogger("bioauth.email")
 
-# Конфигурация подключения
 conf = ConnectionConfig(
     MAIL_USERNAME=settings.SMTP_EMAIL,
     MAIL_PASSWORD=settings.SMTP_PASSWORD,
@@ -14,7 +13,8 @@ conf = ConnectionConfig(
     MAIL_STARTTLS=settings.SMTP_STARTTLS,
     MAIL_SSL_TLS=settings.SMTP_SSL_TLS,
     USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
+    VALIDATE_CERTS=True,
+    TIMEOUT=30
 )
 
 async def send_otp_email(receiver_email: str, otp_code: str) -> None:

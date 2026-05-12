@@ -3,13 +3,11 @@ from typing import Dict
 
 
 class UserLogin(BaseModel):
-    """Запрос на вход: email + пароль."""
     email: EmailStr
     password: str
 
 
 class TokenResponse(BaseModel):
-    """Ответ с JWT-токенами после успешной аутентификации."""
     message: str
     access_token: str
     refresh_token: str
@@ -17,7 +15,6 @@ class TokenResponse(BaseModel):
 
 
 class FaceEnrollRequest(BaseModel):
-    """Запрос на регистрацию лица (Base64-изображение)."""
     image_base64: str = Field(
         ...,
         description="Base64-encoded JPEG/PNG изображение лица",
@@ -25,7 +22,6 @@ class FaceEnrollRequest(BaseModel):
 
 
 class FaceVerifyRequest(BaseModel):
-    """Запрос на верификацию лица."""
     email: EmailStr
     image_base64: str = Field(
         ...,
