@@ -33,7 +33,7 @@ python-multipart==0.0.22
 PyYAML==6.0.3
 redis==7.4.0
 rich==14.3.3
-sentry-sdk==2.57.0w
+sentry-sdk==2.57.0
 uvicorn==0.43.0
 uvloop==0.22.1
 watchfiles==1.1.1
