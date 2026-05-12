@@ -1,16 +1,3 @@
-/**
- * camera.js — Модуль управления камерой с анимированным сканером
- *
- * Предоставляет:
- *   - initCamera(videoElement)   — запуск камеры
- *   - captureFrame(videoElement) — захват кадра + запуск scan-анимации
- *   - stopCamera()              — остановка камеры
- *   - isCameraActive()          — проверка статуса
- *   - createScannerOverlay(container) — создание UI-оверлея сканера
- *   - activateScanAnimation()   — включить сканирующую линию
- *   - deactivateScanAnimation() — выключить сканирующую линию
- */
-
 let currentStream = null;
 let scannerOverlay = null;
 

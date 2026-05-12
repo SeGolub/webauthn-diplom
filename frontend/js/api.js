@@ -1,5 +1,5 @@
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = '';
 
 function _handleUnauthorized() {
     localStorage.removeItem('access_token');
