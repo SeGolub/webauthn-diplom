@@ -1,5 +1,6 @@
 import resend
 import os
+from config import settings
 
 resend.api_key = os.getenv("RESEND_API_KEY")
 
@@ -25,7 +26,7 @@ async def send_otp_email(receiver_email: str, otp_code: str) -> None:
                             padding:28px 32px; text-align:center;">
                   <h1 style="margin:0; color:#ffffff; font-size:24px; font-weight:700;
                               letter-spacing:-0.5px;">
-                    🛡️ BioAuth
+                    BioAuth
                   </h1>
                   <p style="margin:6px 0 0; color:rgba(255,255,255,0.85); font-size:13px;">
                     Двухфакторная аутентификация
@@ -97,9 +98,9 @@ async def send_otp_email(receiver_email: str, otp_code: str) -> None:
 
     try:
         r = resend.Emails.send({
-            "from": "BioAuth <onboarding@resend.dev>", # Тестовый ящик Resend
+            "from": "BioAuth <onboarding@resend.dev>", 
             "to": receiver_email,
-            "subject": "🔐 BioAuth — Ваш код подтверждения",
+            "subject": "BioAuth — Ваш код подтверждения",
             "html": html_body
         })
         print("Успешно отправлено через HTTP API!", r)
