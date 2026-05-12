@@ -27,6 +27,7 @@ tf-keras==2.16.0
 pydantic-settings==2.13.1
 pydantic_core==2.41.5
 PyJWT==2.12.1
+resend==0.8.0
 pyotp==2.9.0
 python-dotenv==1.2.2
 python-multipart==0.0.22
