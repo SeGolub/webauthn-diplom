@@ -25,5 +25,6 @@ RUN mkdir -p /app/.deepface/weights && \
     wget -qO /app/.deepface/weights/arcface_weights.h5 https://github.com/serengil/deepface_models/releases/download/v1.0/arcface_weights.h5
 
 COPY ./src ./src
+COPY ./frontend ./frontend
 
 CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}

@@ -38,7 +38,6 @@ class UserAdminRead(BaseModel):
 
 
 class LockUserRequest(BaseModel):
-    """Запрос на блокировку/разблокировку пользователя."""
     is_locked: bool
 
 
@@ -56,10 +55,7 @@ class AuditLogRead(BaseModel):
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
-    """Пагинированный ответ.
 
-    Пример: {"items": [...], "total": 120, "page": 1, "size": 50}
-    """
     items: List[T]
     total: int
     page: int

@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
@@ -12,10 +14,15 @@ from src.api.admin.router import admin_router
 
 from src.core.database import init_db
 
+CURRENT_DIR = Path(__file__).resolve().parent
+
+FRONTEND_DIR = CURRENT_DIR.parent / "frontend"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle: создаёт таблицы БД при старте."""
     await init_db()
+    # Здесь (если нужно) можно добавить предзагрузку модели DeepFace в память
     yield
 
 app = FastAPI(
@@ -45,6 +52,12 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 register_exception_handlers(app)
 
-app.include_router(auth_router, prefix="/auth")
+app.include_router(auth_router, prefix='/auth')
 app.include_router(user_router)
 app.include_router(admin_router)
+
+@app.get("/api/health", tags=["System"])
+async def health_check():
+    return {"status": "ok", "message": "BioAuth API is running"}
+
+app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
