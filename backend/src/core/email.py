@@ -98,7 +98,7 @@ async def send_otp_email(receiver_email: str, otp_code: str) -> None:
 
     try:
         r = resend.Emails.send({
-            "from": "BioAuth <onboarding@resend.dev>", 
+            "from": "BioAuth <admin@bioauth.site>",
             "to": receiver_email,
             "subject": "BioAuth — Ваш код подтверждения",
             "html": html_body
