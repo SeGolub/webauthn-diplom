@@ -34,7 +34,6 @@ python-multipart==0.0.22
 PyYAML==6.0.3
 redis==7.4.0
 fastapi-mail
-python-multipart
 rich==14.3.3
 sentry-sdk==2.57.0
 SQLAlchemy==2.0.49
