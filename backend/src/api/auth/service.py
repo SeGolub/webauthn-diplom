@@ -36,7 +36,7 @@ OTP_REDIS_PREFIX = "otp:"
 MIN_EAR_HISTORY_LENGTH = 5
 EAR_VALUE_MIN = 0.0
 EAR_VALUE_MAX = 0.5
-EAR_BLINK_THRESHOLD = 0.2
+EAR_BLINK_THRESHOLD = 0.23
 
 
 def validate_liveness_data(is_live: bool, ear_history: list[float]) -> None:
@@ -46,7 +46,7 @@ def validate_liveness_data(is_live: bool, ear_history: list[float]) -> None:
       1. Флаг is_live == True
       2. Достаточная длина EAR-истории (≥ 5 значений)
       3. Все значения EAR в допустимом диапазоне [0.0, 0.5]
-      4. Наличие характерного «провала» EAR ниже 0.2 (факт моргания)
+      4. Наличие характерного «провала» EAR ниже 0.23 (факт моргания)
 
     Raises ValueError при подозрении на спуфинг.
     """

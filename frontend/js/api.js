@@ -155,18 +155,7 @@ export async function generateBackupCodes(accessToken) {
     return await response.json();
 }
 
-export async function loginWithBackupCode(email, code) {
-    const response = await _safeFetch(`${BASE_URL}/auth/login/backup-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code })
-    });
-    if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(_extractErrorMessage(errBody, 'Неверный резервный код'));
-    }
-    return await response.json();
-}
+
 
 export async function getAdminUsers(accessToken) {
     const response = await _safeFetch(`${BASE_URL}/admin/users`, {

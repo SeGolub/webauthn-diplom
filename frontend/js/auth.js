@@ -98,14 +98,7 @@ function initLoginPage() {
     const otpInputs = document.querySelectorAll('.otp-input');
     const btnVerifyOtp = document.getElementById('btn-verify-otp');
 
-    const btnShowBackupLogin = document.getElementById('btn-show-backup-login');
-    const loginBackupBlock = document.getElementById('login-backup-block');
-    const btnBackupLoginSubmit = document.getElementById('btn-backup-login-submit');
-    const btnBackToNormalLogin = document.getElementById('btn-back-to-normal-login');
-    const inputBackupCode = document.getElementById('input-backup-code');
-    const loginBiometricBlock = document.getElementById('login-biometric-block');
-    const inputGroupPassword = document.getElementById('input-group-password');
-    const inputGroupLogin = document.getElementById('input-group-login');
+
 
     const authSection = document.getElementById('auth-section');
     const successSection = document.getElementById('success-section');
@@ -305,89 +298,104 @@ function initLoginPage() {
         // --- Сброс EAR-истории перед новой проверкой ---
         Liveness.resetEarHistory();
 
-        // --- ЗАПУСК LIVENESS CHECK (МОРГАНИЕ) вместо простой детекции лица ---
-        Liveness.startLivenessCheck(
-            cameraVideo,
-            // onBlinkDetected — моргание зафиксировано → задержка → авто-захват + верификация
-            () => {
-                // Блокировка дублей
-                if (isProcessing) return;
-                isProcessing = true;
+        // --- Именованная функция для (пере)запуска liveness check ---
+        function launchLivenessLoop() {
+            Liveness.resetEarHistory();
 
-                // ① Останавливаем цикл детекции
-                Liveness.stopLivenessCheck();
+            Liveness.startLivenessCheck(
+                cameraVideo,
+                // onBlinkDetected — моргание зафиксировано → задержка → авто-захват + верификация
+                () => {
+                    // Блокировка дублей
+                    if (isProcessing) return;
+                    isProcessing = true;
 
-                // ② Жёлтая рамка + сообщение «Замрите»
-                if (cameraContainer) {
-                    cameraContainer.classList.remove('camera-container--liveness-ok');
-                    cameraContainer.classList.add('camera-container--preparing');
-                }
-                updateLivenessUI('warning', 'Живость подтверждена! Замрите...');
-                if (instructionText) {
-                    instructionText.textContent = 'Живость подтверждена! Замрите... 📸';
-                }
+                    // ① Останавливаем цикл детекции
+                    Liveness.stopLivenessCheck();
 
-                // ③ Задержка 800ms — даём время открыть глаза
-                setTimeout(async () => {
-                    // ④ Визуальный эффект «вспышки»
-                    const flash = document.createElement('div');
-                    flash.className = 'capture-flash';
-                    const flashContainer = cameraVideo.closest('.camera-container') || cameraVideo.parentElement;
-                    if (flashContainer) flashContainer.appendChild(flash);
-                    setTimeout(() => flash.remove(), 100);
-
-                    // Обновляем UI → анализ
+                    // ② Жёлтая рамка + сообщение «Замрите»
                     if (cameraContainer) {
-                        cameraContainer.classList.remove('camera-container--preparing');
-                        cameraContainer.classList.add('camera-container--liveness-ok');
+                        cameraContainer.classList.remove('camera-container--liveness-ok');
+                        cameraContainer.classList.add('camera-container--preparing');
                     }
-                    updateLivenessUI('success', 'Анализ биометрии...');
+                    updateLivenessUI('warning', 'Живость подтверждена! Замрите...');
                     if (instructionText) {
-                        instructionText.textContent = 'Лицо обнаружено. Верификация...';
+                        instructionText.textContent = 'Живость подтверждена! Замрите... 📸';
                     }
 
-                    // ⑤ Автозахват кадра и отправка на /auth/face/verify с данными liveness
-                    try {
-                        const snapshot = Camera.captureFrame(cameraVideo);
-                        const earData = Liveness.getEarHistory();
-                        const result = await API.verifyFace(email, snapshot, true, earData);
+                    // ③ Задержка 800ms — даём время открыть глаза
+                    setTimeout(async () => {
+                        // ④ Визуальный эффект «вспышки»
+                        const flash = document.createElement('div');
+                        flash.className = 'capture-flash';
+                        const flashContainer = cameraVideo.closest('.camera-container') || cameraVideo.parentElement;
+                        if (flashContainer) flashContainer.appendChild(flash);
+                        setTimeout(() => flash.remove(), 100);
 
-                        Camera.deactivateScanAnimation();
-
-                        if (result.otp_sent) {
-                            notify('Лицо распознано', 'Код отправлен на вашу почту.', 'success');
-                            if (livenessOverlay) livenessOverlay.style.display = 'none';
-                            showOTPInput(email);
-                        }
-                    } catch (error) {
-                        // ЖЁСТКАЯ обработка ошибок:
-                        // Камера выключается, форма сбрасывается, НИКАКИХ повторных попыток
-                        Camera.deactivateScanAnimation();
-                        Camera.stopCamera();
-                        Liveness.stopLivenessCheck();
-
+                        // Обновляем UI → анализ
                         if (cameraContainer) {
-                            cameraContainer.classList.remove('camera-container--liveness-ok');
                             cameraContainer.classList.remove('camera-container--preparing');
+                            cameraContainer.classList.add('camera-container--liveness-ok');
                         }
-                        if (livenessOverlay) livenessOverlay.style.display = 'none';
+                        updateLivenessUI('success', 'Анализ биометрии...');
+                        if (instructionText) {
+                            instructionText.textContent = 'Лицо обнаружено. Верификация...';
+                        }
 
-                        // Строгий красный Toast — «Доступ запрещён», без retry
-                        notify('Доступ запрещён', error.message || 'Лицо не распознано. Доступ запрещён.', 'error');
+                        // ⑤ Автозахват кадра и отправка на /auth/face/verify с данными liveness
+                        try {
+                            const snapshot = Camera.captureFrame(cameraVideo);
+                            const earData = Liveness.getEarHistory();
+                            const result = await API.verifyFace(email, snapshot, true, earData);
 
-                        // Полный сброс: камера скрыта, форма входа восстановлена
-                        hideCameraAndOTP();
-                        if (authForm) authForm.reset();
-                    } finally {
-                        isProcessing = false;
-                    }
-                }, 800);
-            },
-            // onStatusUpdate — обновление UI-оверлея
-            (state, message) => {
-                updateLivenessUI(state, message);
-            }
-        );
+                            Camera.deactivateScanAnimation();
+                            isProcessing = false;
+
+                            if (result.otp_sent) {
+                                notify('Лицо распознано', 'Код отправлен на вашу почту.', 'success');
+                                if (livenessOverlay) livenessOverlay.style.display = 'none';
+                                showOTPInput(email);
+                            }
+                        } catch (error) {
+                            // ── Мягкая обработка ошибок: показать ошибку → пауза 3с → повторная попытка ──
+                            Camera.deactivateScanAnimation();
+                            Liveness.stopLivenessCheck();
+                            Liveness.resetEarHistory();
+
+                            if (cameraContainer) {
+                                cameraContainer.classList.remove('camera-container--liveness-ok');
+                                cameraContainer.classList.remove('camera-container--preparing');
+                            }
+
+                            // Красное сообщение об ошибке на оверлее
+                            updateLivenessUI('no-face',
+                                'Ошибка верификации: Система не зафиксировала моргание. ' +
+                                'Пожалуйста, посмотрите в камеру и моргните четко.'
+                            );
+                            if (instructionText) {
+                                instructionText.textContent =
+                                    '⚠️ Моргание не зафиксировано. Повторная попытка через 3 сек...';
+                            }
+                            notify('Ошибка верификации',
+                                'Система не зафиксировала моргание. Посмотрите в камеру и моргните четко.',
+                                'error');
+
+                            // Пауза 3 секунды → сброс UI → перезапуск liveness check
+                            setTimeout(() => {
+                                isProcessing = false;
+                                launchLivenessLoop();
+                            }, 3000);
+                        }
+                    }, 800);
+                },
+                // onStatusUpdate — обновление UI-оверлея
+                (state, message) => {
+                    updateLivenessUI(state, message);
+                }
+            );
+        }
+
+        launchLivenessLoop();
     }
 
     /**
@@ -689,63 +697,7 @@ function initLoginPage() {
         });
     }
 
-    if (btnShowBackupLogin) {
-        btnShowBackupLogin.addEventListener('click', () => {
-            if (inputGroupLogin) inputGroupLogin.style.display = 'none';
-            if (loginBiometricBlock) loginBiometricBlock.style.display = 'none';
-            if (inputGroupPassword) inputGroupPassword.style.display = 'none';
-            if (btnNextStep) btnNextStep.style.display = 'none';
-            if (loginBackupBlock) loginBackupBlock.style.display = 'block';
-        });
-    }
 
-    if (btnBackToNormalLogin) {
-        btnBackToNormalLogin.addEventListener('click', () => {
-            if (inputGroupLogin) inputGroupLogin.style.display = 'block';
-            if (loginBiometricBlock) loginBiometricBlock.style.display = 'block';
-            if (inputGroupPassword) inputGroupPassword.style.display = 'block';
-            if (btnNextStep) btnNextStep.style.display = 'block';
-            if (loginBackupBlock) loginBackupBlock.style.display = 'none';
-        });
-    }
-
-    if (btnBackupLoginSubmit) {
-        btnBackupLoginSubmit.addEventListener('click', async () => {
-            const email = inputLogin.value.trim();
-            const code = inputBackupCode.value.trim();
-
-            if (!email || !code) {
-                notify('Ошибка', 'Введите email и резервный код.', 'error');
-                return;
-            }
-
-            btnBackupLoginSubmit.disabled = true;
-            btnBackupLoginSubmit.innerHTML = '<div class="spinner"></div><span>Ожидание...</span>';
-
-            try {
-                const resp = await API.loginWithBackupCode(email, code);
-                currentAccessToken = resp.access_token;
-                currentUserEmail = email;
-                localStorage.setItem('access_token', currentAccessToken);
-                localStorage.setItem('user_email', currentUserEmail);
-
-                if (inputGroupLogin) inputGroupLogin.style.display = 'block';
-                if (loginBiometricBlock) loginBiometricBlock.style.display = 'block';
-                if (inputGroupPassword) inputGroupPassword.style.display = 'block';
-                if (btnNextStep) btnNextStep.style.display = 'block';
-                if (loginBackupBlock) loginBackupBlock.style.display = 'none';
-                if (inputBackupCode) inputBackupCode.value = '';
-
-                notify('Успех', 'Вход по резервному коду', 'success');
-                setTimeout(() => showSuccess(email), 800);
-            } catch (error) {
-                notify('Ошибка', error.message, 'error');
-            } finally {
-                btnBackupLoginSubmit.disabled = false;
-                btnBackupLoginSubmit.innerHTML = 'Подтвердить резервный код';
-            }
-        });
-    }
 
 }
 
