@@ -33,10 +33,11 @@ MAX_IMAGE_WIDTH: int = 800
 
 OTP_REDIS_PREFIX = "otp:"
 
-MIN_EAR_HISTORY_LENGTH = 5
+MIN_EAR_HISTORY_LENGTH = 10
 EAR_VALUE_MIN = 0.0
 EAR_VALUE_MAX = 0.5
-EAR_BLINK_THRESHOLD = 0.23
+EAR_BLINK_AMPLITUDE_THRESHOLD = 0.07
+EAR_BLINK_MIN_THRESHOLD = 0.24
 
 
 def validate_liveness_data(is_live: bool, ear_history: list[float]) -> None:
@@ -44,9 +45,10 @@ def validate_liveness_data(is_live: bool, ear_history: list[float]) -> None:
     Серверная валидация данных Liveness Detection.
     Проверяет:
       1. Флаг is_live == True
-      2. Достаточная длина EAR-истории (≥ 5 значений)
+      2. Достаточная длина EAR-истории (≥ MIN_EAR_HISTORY_LENGTH значений)
       3. Все значения EAR в допустимом диапазоне [0.0, 0.5]
-      4. Наличие характерного «провала» EAR ниже 0.23 (факт моргания)
+      4. Амплитуда моргания (max − min) превышает 0.07
+         и минимальное значение EAR опускается ниже 0.24
 
     Raises ValueError при подозрении на спуфинг.
     """
@@ -77,13 +79,21 @@ def validate_liveness_data(is_live: bool, ear_history: list[float]) -> None:
                 "Спуфинг отклонен: подтвердите, что вы живой человек"
             )
 
-    has_blink = any(v < EAR_BLINK_THRESHOLD for v in ear_history)
+    ear_min = min(ear_history)
+    ear_max = max(ear_history)
+    amplitude = ear_max - ear_min
+
+    has_blink = amplitude > EAR_BLINK_AMPLITUDE_THRESHOLD and ear_min < EAR_BLINK_MIN_THRESHOLD
     if not has_blink:
         logger.warning(
             "[SECURITY AUDIT] Liveness REJECTED: no blink detected in EAR history "
-            "(min=%.4f, threshold=%.2f)",
-            min(ear_history),
-            EAR_BLINK_THRESHOLD,
+            "(min=%.4f, max=%.4f, amplitude=%.4f, "
+            "required_amplitude=%.2f, required_min_below=%.2f)",
+            ear_min,
+            ear_max,
+            amplitude,
+            EAR_BLINK_AMPLITUDE_THRESHOLD,
+            EAR_BLINK_MIN_THRESHOLD,
         )
         raise ValueError(
             "Спуфинг отклонен: подтвердите, что вы живой человек"
