@@ -33,6 +33,62 @@ MAX_IMAGE_WIDTH: int = 800
 
 OTP_REDIS_PREFIX = "otp:"
 
+MIN_EAR_HISTORY_LENGTH = 5
+EAR_VALUE_MIN = 0.0
+EAR_VALUE_MAX = 0.5
+EAR_BLINK_THRESHOLD = 0.2
+
+
+def validate_liveness_data(is_live: bool, ear_history: list[float]) -> None:
+    """
+    Серверная валидация данных Liveness Detection.
+    Проверяет:
+      1. Флаг is_live == True
+      2. Достаточная длина EAR-истории (≥ 5 значений)
+      3. Все значения EAR в допустимом диапазоне [0.0, 0.5]
+      4. Наличие характерного «провала» EAR ниже 0.2 (факт моргания)
+
+    Raises ValueError при подозрении на спуфинг.
+    """
+    if not is_live:
+        logger.warning(
+            "[SECURITY AUDIT] Liveness REJECTED: is_live=False"
+        )
+        raise ValueError(
+            "Спуфинг отклонен: подтвердите, что вы живой человек"
+        )
+
+    if len(ear_history) < MIN_EAR_HISTORY_LENGTH:
+        logger.warning(
+            "[SECURITY AUDIT] Liveness REJECTED: ear_history too short (%d)",
+            len(ear_history),
+        )
+        raise ValueError(
+            "Спуфинг отклонен: подтвердите, что вы живой человек"
+        )
+
+    for val in ear_history:
+        if not (EAR_VALUE_MIN <= val <= EAR_VALUE_MAX):
+            logger.warning(
+                "[SECURITY AUDIT] Liveness REJECTED: EAR value out of range: %.4f",
+                val,
+            )
+            raise ValueError(
+                "Спуфинг отклонен: подтвердите, что вы живой человек"
+            )
+
+    has_blink = any(v < EAR_BLINK_THRESHOLD for v in ear_history)
+    if not has_blink:
+        logger.warning(
+            "[SECURITY AUDIT] Liveness REJECTED: no blink detected in EAR history "
+            "(min=%.4f, threshold=%.2f)",
+            min(ear_history),
+            EAR_BLINK_THRESHOLD,
+        )
+        raise ValueError(
+            "Спуфинг отклонен: подтвердите, что вы живой человек"
+        )
+
 
 def _preprocess_image(image_base64: str) -> np.ndarray:
 

@@ -213,6 +213,24 @@ async def face_verify(
             detail="Лицо не зарегистрировано. Сначала пройдите /auth/face/enroll",
         )
 
+    # ── Liveness Detection: серверная валидация ──────────────────────
+    try:
+        auth_service.validate_liveness_data(data.is_live, data.ear_history)
+    except ValueError:
+        await create_audit_log(
+            session=session,
+            action="LIVENESS_SPOOF_REJECTED",
+            status="FAILED",
+            user_id=user.id,
+            ip_address=client_ip,
+            user_agent=user_agent,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Спуфинг отклонен: подтвердите, что вы живой человек",
+        )
+    # ─────────────────────────────────────────────────────────────────
+
     try:
         candidate_embedding = await auth_service.extract_face_embedding(data.image_base64)
     except ValueError as e:

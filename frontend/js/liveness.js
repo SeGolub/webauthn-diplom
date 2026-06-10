@@ -12,6 +12,9 @@ let blinkState = {
     wasEyeClosed: false,
 };
 
+// ── EAR History: записываем каждое измерение для отправки на бэкенд ──
+let earHistory = [];
+
 
 export async function loadModels() {
     if (modelsLoaded) return;
@@ -33,6 +36,21 @@ export async function loadModels() {
 
 export function isModelsLoaded() {
     return modelsLoaded;
+}
+
+/**
+ * Возвращает копию истории EAR-значений.
+ * Используется для отправки на бэкенд как доказательство liveness.
+ */
+export function getEarHistory() {
+    return [...earHistory];
+}
+
+/**
+ * Очищает историю EAR для новой сессии проверки.
+ */
+export function resetEarHistory() {
+    earHistory = [];
 }
 
 /**
@@ -84,6 +102,7 @@ export function startLivenessCheck(videoElement, onBlinkDetected, onStatusUpdate
     }
 
     blinkState = { closedFrames: 0, wasEyeClosed: false };
+    earHistory = [];
     isRunning = true;
 
     if (onStatusUpdate) {
@@ -114,6 +133,9 @@ export function startLivenessCheck(videoElement, onBlinkDetected, onStatusUpdate
             const leftEAR = computeEAR(leftEye);
             const rightEAR = computeEAR(rightEye);
             const avgEAR = (leftEAR + rightEAR) / 2.0;
+
+            // ── Записываем EAR в историю ──
+            earHistory.push(parseFloat(avgEAR.toFixed(4)));
 
             if (avgEAR < EAR_THRESHOLD) {
                 blinkState.closedFrames++;
@@ -147,76 +169,6 @@ export function startLivenessCheck(videoElement, onBlinkDetected, onStatusUpdate
 
         } catch (err) {
             console.error('[LIVENESS] Ошибка детекции:', err);
-        }
-    }, DETECTION_INTERVAL_MS);
-}
-
-/**
- *
- * @param {HTMLVideoElement} videoElement 
- * @param {Function} onFaceDetected 
- * @param {Function} onStatusUpdate 
- */
-export function startFaceDetection(videoElement, onFaceDetected, onStatusUpdate) {
-    if (!modelsLoaded) {
-        console.error('[LIVENESS] Модели не загружены. Вызовите loadModels() первым.');
-        return;
-    }
-
-    isRunning = true;
-    let focusTimerId = null;
-
-    if (onStatusUpdate) {
-        onStatusUpdate('waiting', 'Расположите лицо в кадре для входа 📷');
-    }
-
-    intervalId = setInterval(async () => {
-        if (!isRunning) return;
-
-        try {
-            const detection = await faceapi
-                .detectSingleFace(videoElement, new faceapi.TinyFaceDetectorOptions({
-                    inputSize: 224,
-                    scoreThreshold: 0.5,
-                }));
-
-            if (!detection) {
-                if (focusTimerId) {
-                    clearTimeout(focusTimerId);
-                    focusTimerId = null;
-                    console.log('[LIVENESS/LOGIN] Face lost during focus delay, resetting...');
-                }
-                if (onStatusUpdate) {
-                    onStatusUpdate('no-face', 'Расположите лицо в кадре 😕');
-                }
-                return;
-            }
-
-            if (!focusTimerId) {
-                console.log('[LIVENESS/LOGIN] 👁️ Face detected, starting 1500ms focus delay...');
-                if (onStatusUpdate) {
-                    onStatusUpdate('tracking', 'Фокусировка... Не двигайтесь 📸');
-                }
-
-                focusTimerId = setTimeout(() => {
-                    if (!isRunning) return;
-
-                    console.log('[LIVENESS/LOGIN] ✅ Focus delay complete, capturing...');
-                    isRunning = false;
-
-                    if (onStatusUpdate) {
-                        onStatusUpdate('success', 'Лицо обнаружено. Анализ...');
-                    }
-
-                    if (onFaceDetected) {
-                        onFaceDetected();
-                    }
-
-                    stopLivenessCheck();
-                }, 1500);
-            }
-        } catch (err) {
-            console.error('[LIVENESS/LOGIN] Ошибка детекции:', err);
         }
     }, DETECTION_INTERVAL_MS);
 }

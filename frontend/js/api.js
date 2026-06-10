@@ -94,11 +94,16 @@ export async function enrollFace(accessToken, imageBase64) {
     return await response.json();
 }
 
-export async function verifyFace(email, imageBase64) {
+export async function verifyFace(email, imageBase64, isLive, earHistory) {
     const response = await _safeFetch(`${BASE_URL}/auth/face/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, image_base64: imageBase64 })
+        body: JSON.stringify({
+            email,
+            image_base64: imageBase64,
+            is_live: isLive,
+            ear_history: earHistory,
+        })
     });
 
     if (!response.ok) {

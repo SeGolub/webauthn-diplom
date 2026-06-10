@@ -27,6 +27,15 @@ class FaceVerifyRequest(BaseModel):
         ...,
         description="Base64-encoded JPEG/PNG изображение лица",
     )
+    is_live: bool = Field(
+        ...,
+        description="Флаг подтверждения живости (моргание зафиксировано на фронтенде)",
+    )
+    ear_history: list[float] = Field(
+        ...,
+        min_length=5,
+        description="История значений EAR (Eye Aspect Ratio) за время проверки живости",
+    )
 
 
 class OTPVerifyRequest(BaseModel):

@@ -240,7 +240,7 @@ function initLoginPage() {
     });
 
     // =======================================================================
-    // РЕЖИМ LOGIN: детекция лица без моргания, жёсткая обработка ошибок
+    // РЕЖИМ LOGIN: детекция лица С ПРОВЕРКОЙ МОРГАНИЯ (liveness), жёсткая обработка ошибок
     // =======================================================================
     async function showFaceVerification(email) {
         if (securityInfoBlock) securityInfoBlock.style.display = 'none';
@@ -264,9 +264,9 @@ function initLoginPage() {
         if (instructionBlock) {
             instructionBlock.style.display = 'flex';
         }
-        // if (mode === 'login') — НЕ требуем моргания, только детекция лица
+        // ТРЕБУЕМ моргание для подтверждения живости
         if (instructionText) {
-            instructionText.textContent = 'Расположите лицо в кадре для входа 📷';
+            instructionText.textContent = 'Подтвердите живость — моргните перед камерой 👁️';
         }
 
         // --- Запуск камеры ---
@@ -278,21 +278,21 @@ function initLoginPage() {
             return;
         }
 
-        // --- Скрываем кнопку ручного захвата (auto-capture при обнаружении лица) ---
+        // --- Скрываем кнопку ручного захвата ---
         if (btnCaptureLogin) {
             btnCaptureLogin.style.display = 'none';
         }
 
         // --- Загрузка моделей face-api.js ---
         if (livenessOverlay) livenessOverlay.style.display = 'flex';
-        updateLivenessUI('loading', 'Загрузка моделей детекции лица...');
+        updateLivenessUI('loading', 'Загрузка моделей проверки живости...');
 
         try {
             await Liveness.loadModels();
         } catch (err) {
             console.error('[LOGIN] Не удалось загрузить модели:', err);
-            updateLivenessUI('no-face', 'Детекция лица недоступна');
-            // if (mode === 'login') — жёсткий отказ, без fallback
+            updateLivenessUI('no-face', 'Проверка живости недоступна');
+            // ЖЁСТКИЙ отказ — без fallback, без ручного захвата
             Camera.stopCamera();
             if (livenessOverlay) {
                 setTimeout(() => { livenessOverlay.style.display = 'none'; }, 2000);
@@ -302,60 +302,86 @@ function initLoginPage() {
             return;
         }
 
-        // --- if (mode === 'login'): Запуск Face Detection БЕЗ моргания ---
-        // Включает задержку 1500ms внутри liveness.js для фокусировки камеры
-        Liveness.startFaceDetection(
+        // --- Сброс EAR-истории перед новой проверкой ---
+        Liveness.resetEarHistory();
+
+        // --- ЗАПУСК LIVENESS CHECK (МОРГАНИЕ) вместо простой детекции лица ---
+        Liveness.startLivenessCheck(
             cameraVideo,
-            // onFaceDetected — лицо стабильно 1500ms → авто-захват и верификация
-            async () => {
+            // onBlinkDetected — моргание зафиксировано → задержка → авто-захват + верификация
+            () => {
                 // Блокировка дублей
                 if (isProcessing) return;
                 isProcessing = true;
 
-                // Обновляем UI → анализ
-                updateLivenessUI('success', 'Анализ биометрии...');
+                // ① Останавливаем цикл детекции
+                Liveness.stopLivenessCheck();
+
+                // ② Жёлтая рамка + сообщение «Замрите»
+                if (cameraContainer) {
+                    cameraContainer.classList.remove('camera-container--liveness-ok');
+                    cameraContainer.classList.add('camera-container--preparing');
+                }
+                updateLivenessUI('warning', 'Живость подтверждена! Замрите...');
                 if (instructionText) {
-                    instructionText.textContent = 'Лицо обнаружено. Верификация...';
+                    instructionText.textContent = 'Живость подтверждена! Замрите... 📸';
                 }
 
-                // Визуальный эффект «вспышки» перед захватом
-                const flash = document.createElement('div');
-                flash.className = 'capture-flash';
-                const flashContainer = cameraVideo.closest('.camera-container') || cameraVideo.parentElement;
-                if (flashContainer) flashContainer.appendChild(flash);
-                setTimeout(() => flash.remove(), 100);
+                // ③ Задержка 800ms — даём время открыть глаза
+                setTimeout(async () => {
+                    // ④ Визуальный эффект «вспышки»
+                    const flash = document.createElement('div');
+                    flash.className = 'capture-flash';
+                    const flashContainer = cameraVideo.closest('.camera-container') || cameraVideo.parentElement;
+                    if (flashContainer) flashContainer.appendChild(flash);
+                    setTimeout(() => flash.remove(), 100);
 
-                // Автозахват кадра и отправка на /auth/face/verify
-                try {
-                    const snapshot = Camera.captureFrame(cameraVideo);
-                    const result = await API.verifyFace(email, snapshot);
-
-                    Camera.deactivateScanAnimation();
-
-                    if (result.otp_sent) {
-                        notify('Лицо распознано', 'Код отправлен на вашу почту.', 'success');
-                        if (livenessOverlay) livenessOverlay.style.display = 'none';
-                        showOTPInput(email);
+                    // Обновляем UI → анализ
+                    if (cameraContainer) {
+                        cameraContainer.classList.remove('camera-container--preparing');
+                        cameraContainer.classList.add('camera-container--liveness-ok');
                     }
-                } catch (error) {
-                    // if (mode === 'login') — ЖЁСТКАЯ обработка ошибок:
-                    // Камера выключается, форма сбрасывается, НИКАКИХ повторных попыток
-                    Camera.deactivateScanAnimation();
-                    Camera.stopCamera();
-                    Liveness.stopLivenessCheck();
+                    updateLivenessUI('success', 'Анализ биометрии...');
+                    if (instructionText) {
+                        instructionText.textContent = 'Лицо обнаружено. Верификация...';
+                    }
 
-                    if (cameraContainer) cameraContainer.classList.remove('camera-container--liveness-ok');
-                    if (livenessOverlay) livenessOverlay.style.display = 'none';
+                    // ⑤ Автозахват кадра и отправка на /auth/face/verify с данными liveness
+                    try {
+                        const snapshot = Camera.captureFrame(cameraVideo);
+                        const earData = Liveness.getEarHistory();
+                        const result = await API.verifyFace(email, snapshot, true, earData);
 
-                    // Строгий красный Toast — «Доступ запрещён», без retry
-                    notify('Доступ запрещён', 'Лицо не распознано. Доступ запрещён.', 'error');
+                        Camera.deactivateScanAnimation();
 
-                    // Полный сброс: камера скрыта, форма входа восстановлена
-                    hideCameraAndOTP();
-                    if (authForm) authForm.reset();
-                } finally {
-                    isProcessing = false;
-                }
+                        if (result.otp_sent) {
+                            notify('Лицо распознано', 'Код отправлен на вашу почту.', 'success');
+                            if (livenessOverlay) livenessOverlay.style.display = 'none';
+                            showOTPInput(email);
+                        }
+                    } catch (error) {
+                        // ЖЁСТКАЯ обработка ошибок:
+                        // Камера выключается, форма сбрасывается, НИКАКИХ повторных попыток
+                        Camera.deactivateScanAnimation();
+                        Camera.stopCamera();
+                        Liveness.stopLivenessCheck();
+
+                        if (cameraContainer) {
+                            cameraContainer.classList.remove('camera-container--liveness-ok');
+                            cameraContainer.classList.remove('camera-container--preparing');
+                        }
+                        if (livenessOverlay) livenessOverlay.style.display = 'none';
+
+                        // Строгий красный Toast — «Доступ запрещён», без retry
+                        notify('Доступ запрещён', error.message || 'Лицо не распознано. Доступ запрещён.', 'error');
+
+                        // Полный сброс: камера скрыта, форма входа восстановлена
+                        hideCameraAndOTP();
+                        if (authForm) authForm.reset();
+                    } finally {
+                        isProcessing = false;
+                    }
+                }, 800);
             },
             // onStatusUpdate — обновление UI-оверлея
             (state, message) => {
