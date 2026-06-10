@@ -1,6 +1,7 @@
 const EAR_THRESHOLD = 0.25;
 const BLINK_CONSEC_FRAMES = 2;
 const DETECTION_INTERVAL_MS = 100;
+const MAX_EAR_HISTORY = 15;
 
 let modelsLoaded = false;
 let animFrameId = null;
@@ -134,7 +135,10 @@ export function startLivenessCheck(videoElement, onBlinkDetected, onStatusUpdate
             const rightEAR = computeEAR(rightEye);
             const avgEAR = (leftEAR + rightEAR) / 2.0;
 
-            // ── Записываем EAR в историю ──
+            // ── Записываем EAR в скользящую историю (rolling buffer) ──
+            if (earHistory.length >= MAX_EAR_HISTORY) {
+                earHistory.shift();
+            }
             earHistory.push(parseFloat(avgEAR.toFixed(4)));
 
             if (avgEAR < EAR_THRESHOLD) {
